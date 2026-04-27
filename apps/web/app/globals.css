@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --ink: #101014;
+  --paper: #fbf7ef;
+  --ember: #ff6f3c;
+  --violet: #7b61ff;
+  --mint: #baf7d4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255, 111, 60, 0.26), transparent 28rem),
+    radial-gradient(circle at 82% 6%, rgba(123, 97, 255, 0.24), transparent 26rem),
+    linear-gradient(135deg, #111118 0%, #18151f 44%, #25150f 100%);
+  color: var(--paper);
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.grain {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  opacity: 0.08;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E");
+}
+
+.glass-panel {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(24px);
+}
+
+.focus-ring {
+  outline: none;
+  transition: box-shadow 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.focus-ring:focus {
+  border-color: rgba(186, 247, 212, 0.8);
+  box-shadow: 0 0 0 4px rgba(186, 247, 212, 0.16);
+}
