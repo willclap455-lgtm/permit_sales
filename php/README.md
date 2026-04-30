@@ -167,7 +167,7 @@ match wins (so a value set in IIS overrides a value in `.env`):
 
 | key                    | description                                                 |
 | ---------------------- | ----------------------------------------------------------- |
-| `DATABASE_URL`         | `postgres://user:pass@host:5432/permitsales_php`            |
+| `DATABASE_URL`         | `postgres://user:pass@host:5432/permitsales_php` (URL-encode `#`, `@`, `/`, `?`, `:` etc. inside the username/password as `%23`, `%40`, `%2F`, `%3F`, `%3A`) |
 | `APP_SECRET`           | ≥32-char string used to sign session / CSRF tokens          |
 | `CARD_ENCRYPTION_KEY`  | base64 32-byte key for AES-256-GCM card encryption          |
 | `LAST_FOUR_PEPPER`     | ≥16-char pepper for hashing card last-four digits           |
