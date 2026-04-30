@@ -57,7 +57,13 @@ try {
     http_response_code(500);
     if (PermitSales\Env::get('APP_ENV', 'dev') === 'dev') {
         header('Content-Type: text/plain');
-        echo $e->getMessage() . "\n\n" . $e->getTraceAsString();
+        echo $e->getMessage() . "\n\n";
+        // Surface .env loader state on every dev-mode error. This is the
+        // single most common source of "the app won't start" reports on
+        // IIS, where it is not always obvious which .env (if any) the
+        // FastCGI worker actually picked up.
+        echo PermitSales\Env::diagnostics() . "\n\n";
+        echo $e->getTraceAsString();
         return;
     }
     View::render('pages/error', ['title' => 'Something went wrong']);

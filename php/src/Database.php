@@ -19,7 +19,11 @@ final class Database
         $url = Env::require('DATABASE_URL');
         $parts = parse_url($url);
         if ($parts === false || !isset($parts['scheme']) || !str_starts_with($parts['scheme'], 'postgres')) {
-            throw new \RuntimeException('DATABASE_URL must be a postgres://… URL');
+            throw new \RuntimeException(
+                'DATABASE_URL must be a postgres://… URL. Got: '
+                . self::redactUrl($url) . "\n\n"
+                . Env::diagnostics()
+            );
         }
 
         $host = $parts['host'] ?? 'localhost';
@@ -70,5 +74,14 @@ final class Database
         $stmt = self::connection()->prepare($sql);
         $stmt->execute($params);
         return $stmt->rowCount();
+    }
+
+    private static function redactUrl(string $url): string
+    {
+        // Mask the password in the URL before echoing it back in an error,
+        // and quote the value so trailing/leading whitespace or BOM bytes
+        // are obvious to the operator.
+        $masked = preg_replace('#(://[^:/?#]+:)([^@/]+)(@)#', '$1***$3', $url);
+        return var_export($masked ?? $url, true);
     }
 }
