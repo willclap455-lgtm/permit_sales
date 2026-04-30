@@ -17,7 +17,21 @@ spl_autoload_register(static function (string $class): void {
     }
 });
 
-Env::load(dirname(__DIR__) . '/.env');
+// Look for the .env file in several sensible locations. The first one that
+// exists wins. This matters on IIS, where the "current working directory"
+// of the FastCGI worker is not necessarily the project root, and where
+// operators sometimes drop .env next to public/index.php by accident.
+$projectRoot = dirname(__DIR__);
+$envCandidates = [
+    $projectRoot . '/.env',
+    $projectRoot . '/public/.env',
+    $projectRoot . '/../.env',
+];
+if (($explicit = getenv('PERMITSALES_ENV_FILE')) !== false && $explicit !== '') {
+    array_unshift($envCandidates, $explicit);
+}
+Env::load($envCandidates);
+
 Session::start();
 date_default_timezone_set('UTC');
 

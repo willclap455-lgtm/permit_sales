@@ -123,6 +123,46 @@ virtual directory) at the `public/` folder.
 - Adds correct MIME types for `.svg`, `.woff`, `.woff2`, and
   `.webmanifest` assets.
 
+### Configuring environment on IIS
+
+You have three options. They are all checked, in this order, and the first
+match wins (so a value set in IIS overrides a value in `.env`):
+
+1. **Real environment variables / IIS FastCGI variables.** Recommended
+   for production. Set them on the FastCGI handler so they are pushed
+   into every PHP worker. There is a commented `<environmentVariables>`
+   example at the bottom of `public/web.config`; uncomment it and fill in
+   real values. You can also set them in *IIS Manager → FastCGI Settings →
+   (your `php-cgi.exe`) → Edit → Environment Variables*.
+2. **`.env` file.** The bootstrap looks for it in this order:
+   1. The path in the `PERMITSALES_ENV_FILE` env var (if set),
+   2. `php/.env` (alongside `src/`, `views/`, `composer.json`),
+   3. `php/public/.env` (in case you put it next to `index.php`),
+   4. one level above `php/`.
+
+   The recommended location is `php/.env`. Keep it **above** the web root.
+
+#### Common IIS gotchas with `.env`
+
+- **UTF-8 BOM from Notepad.** Notepad and some PowerShell redirects save
+  files with a UTF-8 BOM (`EF BB BF`) at the start, which would otherwise
+  rename the first key to something like `\xEF\xBB\xBFDATABASE_URL` and
+  make `getenv('DATABASE_URL')` return `false`. The loader strips the BOM
+  automatically, but it is still safer to save `.env` as plain UTF-8 (no
+  BOM) — VS Code, Notepad++, or `Set-Content -Encoding utf8NoBOM` all do
+  this.
+- **NTFS permissions.** The IIS application pool identity (default:
+  `IIS APPPOOL\<sitename>`) must have **Read** on `php\.env`. Right-click
+  the file → *Properties* → *Security* → *Edit* → *Add* →
+  `IIS APPPOOL\PermitSales` → Read.
+- **Where to put it.** `.env` should be in `php\` (one level above
+  `public\`). The shipped `web.config` blocks `.env` from being served
+  even if it ends up inside `public\`.
+- **Diagnosing.** Set `APP_ENV=dev` (in the IIS env vars or in `.env`)
+  and reload the page. The error page will print every path the loader
+  tried and the result for each one (`missing`, `unreadable`,
+  `loaded — N variable(s)`).
+
 ## Environment variables (`.env`)
 
 | key                    | description                                                 |
