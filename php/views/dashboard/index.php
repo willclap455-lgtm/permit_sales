@@ -168,7 +168,7 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
             </div>
             <p class="muted small">Leave blank to skip mailing. If you fill in any field, we need address line 1, city, state, and ZIP.</p>
           </fieldset>
-          <button class="btn btn--primary btn--lg" type="submit">Issue permit</button>
+          <button class="btn btn--primary btn--lg" type="submit">Checkout</button>
         </form>
       </section>
 
