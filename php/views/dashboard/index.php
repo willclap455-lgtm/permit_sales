@@ -142,11 +142,33 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
               <input name="starts_on" type="date" value="<?= date('Y-m-d') ?>" required>
             </div>
           </div>
-          <div class="field">
-            <label>Mailing address (optional)</label>
-            <textarea name="mailing_address" rows="2"></textarea>
-          </div>
-          <button class="btn btn--primary btn--lg" type="submit">Issue permit</button>
+          <fieldset class="permit-order__address">
+            <legend>Mailing address (optional)</legend>
+            <div class="field">
+              <label>Address line 1</label>
+              <input name="address_line1" maxlength="120" autocomplete="address-line1">
+            </div>
+            <div class="field">
+              <label>Address line 2</label>
+              <input name="address_line2" maxlength="120" autocomplete="address-line2">
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>City</label>
+                <input name="address_city" maxlength="80" autocomplete="address-level2">
+              </div>
+              <div class="field">
+                <label>State</label>
+                <input name="address_state" maxlength="2" minlength="2" pattern="[A-Za-z]{2}" placeholder="CO" autocomplete="address-level1">
+              </div>
+              <div class="field">
+                <label>ZIP</label>
+                <input name="address_zip" maxlength="10" pattern="\d{5}(-\d{4})?" placeholder="80202" autocomplete="postal-code">
+              </div>
+            </div>
+            <p class="muted small">Leave blank to skip mailing. If you fill in any field, we need address line 1, city, state, and ZIP.</p>
+          </fieldset>
+          <button class="btn btn--primary btn--lg" type="submit">Checkout</button>
         </form>
       </section>
 
