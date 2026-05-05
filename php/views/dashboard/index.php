@@ -37,7 +37,7 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
           <div class="field-row">
             <div class="field"><label>Color</label><input name="color" required></div>
             <div class="field"><label>Plate</label><input name="license_plate" required></div>
-            <div class="field"><label>Region</label><input name="license_plate_region" placeholder="CO, NY..."></div>
+            <div class="field"><label>State</label><input name="license_plate_region" placeholder="CO, NY..." maxlength="2" pattern="[A-Za-z]{2}"></div>
           </div>
           <button class="btn btn--primary" type="submit">Save vehicle</button>
         </form>
