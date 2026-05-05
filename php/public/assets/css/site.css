@@ -407,7 +407,7 @@ button { font: inherit; cursor: pointer; }
   box-shadow: 0 0 0 3px var(--blueprint-soft);
 }
 .field-row {
-  display: grid; gap: 12px; grid-template-columns: 1fr;
+  display: grid; gap: 12px 24px; grid-template-columns: 1fr;
 }
 @media (min-width: 540px) { .field-row { grid-template-columns: repeat(2, 1fr); } }
 .field-row .field { margin-bottom: 0; }
@@ -424,7 +424,7 @@ button { font: inherit; cursor: pointer; }
 @media (min-width: 880px) { .dashboard__head { grid-template-columns: 1fr auto; } }
 .dashboard__quick { display: inline-flex; gap: 10px; }
 .dashboard__grid {
-  display: grid; gap: 18px;
+  display: grid; gap: 18px 28px;
   grid-template-columns: 1fr;
 }
 @media (min-width: 880px) { .dashboard__grid { grid-template-columns: repeat(2, 1fr); } }
