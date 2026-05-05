@@ -138,15 +138,6 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
               </select>
             </div>
             <div class="field">
-              <label>Card</label>
-              <select name="credit_card_id">
-                <option value="">— Pick a card —</option>
-                <?php foreach ($cards as $c): ?>
-                  <option value="<?= View::e($c['id']) ?>"><?= View::e($c['brand'] ?? 'Card') ?> ····<?= View::e($c['display_last_four']) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <div class="field">
               <label>Start date</label>
               <input name="starts_on" type="date" value="<?= date('Y-m-d') ?>" required>
             </div>

@@ -20,7 +20,6 @@ final class OrderController
         try {
             $permitTypeId = Request::required('permit_type_id');
             $vehicleId = Request::input('vehicle_id');
-            $cardId = Request::input('credit_card_id');
             $startsOn = Request::required('starts_on');
             $address = Request::input('mailing_address');
         } catch (ValidationException $e) {
@@ -63,18 +62,17 @@ final class OrderController
             }
         }
 
-        if ($cardId) {
-            $owns = Database::one(
-                'SELECT id FROM credit_cards
-                  WHERE id = :id AND user_id = :uid AND deleted_at IS NULL',
-                ['id' => $cardId, 'uid' => $user['id']]
-            );
-            if ($owns === null) {
-                Session::flash('error', 'Selected card is invalid.');
-                header('Location: /dashboard');
-                return;
-            }
-        }
+        // No longer collected from the form — auto-select the user's default
+        // (or most-recent) saved card on file. Falls back to null, in which
+        // case the order is created in `pending` status and can be paid later.
+        $defaultCard = Database::one(
+            'SELECT id FROM credit_cards
+              WHERE user_id = :uid AND deleted_at IS NULL
+              ORDER BY is_default DESC, created_at DESC
+              LIMIT 1',
+            ['uid' => $user['id']]
+        );
+        $cardId = $defaultCard['id'] ?? null;
 
         $permitNumber = 'PS-' . strtoupper(bin2hex(random_bytes(4)));
 
