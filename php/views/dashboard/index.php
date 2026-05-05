@@ -67,7 +67,7 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
         </header>
         <form class="card-panel__form" method="post" action="/cards" data-form="card-form" hidden>
           <input type="hidden" name="_csrf" value="<?= View::e($__csrf) ?>">
-          <div class="field"><label>Cardholder name</label><input name="cardholder_name" required></div>
+          <div class="field"><label>Cardholder name <span class="muted">(as it shows on the card)</span></label><input name="cardholder_name" required></div>
           <div class="field"><label>Card number</label><input name="card_number" inputmode="numeric" autocomplete="cc-number" required></div>
           <div class="field-row">
             <div class="field"><label>Exp. month</label><input name="exp_month" inputmode="numeric" maxlength="2" placeholder="MM" required></div>
