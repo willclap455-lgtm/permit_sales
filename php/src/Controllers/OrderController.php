@@ -21,6 +21,8 @@ final class OrderController
             $permitTypeId = Request::required('permit_type_id');
             $vehicleId = Request::input('vehicle_id');
             $startsOn = Request::required('starts_on');
+            $firstName = Request::input('address_first_name');
+            $lastName  = Request::input('address_last_name');
             $line1 = Request::input('address_line1');
             $line2 = Request::input('address_line2');
             $city  = Request::input('address_city');
@@ -33,7 +35,9 @@ final class OrderController
         }
 
         try {
-            $address = self::buildMailingAddress($line1, $line2, $city, $state, $zip);
+            $address = self::buildMailingAddress(
+                $firstName, $lastName, $line1, $line2, $city, $state, $zip
+            );
         } catch (ValidationException $e) {
             Session::flash('error', $e->getMessage());
             header('Location: /dashboard');
@@ -104,7 +108,7 @@ final class OrderController
                 'cents'  => $type['cents_price'],
                 'start'  => $startsOn,
                 'end'    => $endsOn,
-                'addr'   => $address ?: null,
+                'addr'   => $address,
             ]
         );
 
@@ -113,39 +117,47 @@ final class OrderController
     }
 
     /**
-     * Combine the five mailing-address fields into a single newline-formatted
-     * string, or return null if every field is blank. If any field is filled,
-     * line 1, city, state, and ZIP are all required and each is sanity-checked.
+     * Combine the mailing-address fields into a single newline-formatted
+     * string suitable for the permit_orders.mailing_address TEXT column.
+     *
+     * The mailing address is required for checkout. First name, last name,
+     * line 1, city, state, and ZIP must all be present and pass basic
+     * sanity checks. Line 2 is the only optional field.
      */
     private static function buildMailingAddress(
+        ?string $firstName,
+        ?string $lastName,
         ?string $line1,
         ?string $line2,
         ?string $city,
         ?string $state,
         ?string $zip,
-    ): ?string {
+    ): string {
+        $firstName = $firstName !== null ? trim($firstName) : '';
+        $lastName  = $lastName  !== null ? trim($lastName)  : '';
         $line1 = $line1 !== null ? trim($line1) : '';
         $line2 = $line2 !== null ? trim($line2) : '';
         $city  = $city  !== null ? trim($city)  : '';
         $state = $state !== null ? strtoupper(trim($state)) : '';
         $zip   = $zip   !== null ? trim($zip)   : '';
 
-        $anyFilled = ($line1 . $line2 . $city . $state . $zip) !== '';
-        if (!$anyFilled) {
-            return null;
-        }
-
         $missing = [];
+        if ($firstName === '') { $missing[] = 'first name'; }
+        if ($lastName  === '') { $missing[] = 'last name'; }
         if ($line1 === '') { $missing[] = 'address line 1'; }
         if ($city  === '') { $missing[] = 'city'; }
         if ($state === '') { $missing[] = 'state'; }
         if ($zip   === '') { $missing[] = 'ZIP'; }
         if ($missing !== []) {
             throw new ValidationException(
-                'Mailing address is incomplete. Please fill in: ' . implode(', ', $missing) . '.'
+                'A mailing address is required to checkout. Please fill in: '
+                . implode(', ', $missing) . '.'
             );
         }
 
+        if (strlen($firstName) > 80 || strlen($lastName) > 80) {
+            throw new ValidationException('First/last name must be 80 characters or fewer.');
+        }
         if (strlen($line1) > 120 || strlen($line2) > 120) {
             throw new ValidationException('Mailing address lines must be 120 characters or fewer.');
         }
@@ -159,12 +171,11 @@ final class OrderController
             throw new ValidationException('ZIP must look like 80202 or 80202-1234.');
         }
 
-        $cityLine = "{$city}, {$state} {$zip}";
-        $lines = [$line1];
+        $lines = ["{$firstName} {$lastName}", $line1];
         if ($line2 !== '') {
             $lines[] = $line2;
         }
-        $lines[] = $cityLine;
+        $lines[] = "{$city}, {$state} {$zip}";
         return implode("\n", $lines);
     }
 }

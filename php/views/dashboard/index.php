@@ -67,7 +67,7 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
         </header>
         <form class="card-panel__form" method="post" action="/cards" data-form="card-form" hidden>
           <input type="hidden" name="_csrf" value="<?= View::e($__csrf) ?>">
-          <div class="field"><label>Cardholder name</label><input name="cardholder_name" required></div>
+          <div class="field"><label>Cardholder name <span class="muted">(as it shows on the card)</span></label><input name="cardholder_name" required></div>
           <div class="field"><label>Card number</label><input name="card_number" inputmode="numeric" autocomplete="cc-number" required></div>
           <div class="field-row">
             <div class="field"><label>Exp. month</label><input name="exp_month" inputmode="numeric" maxlength="2" placeholder="MM" required></div>
@@ -143,10 +143,20 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
             </div>
           </div>
           <fieldset class="permit-order__address">
-            <legend>Mailing address (optional)</legend>
+            <legend>Mailing address</legend>
+            <div class="field-row">
+              <div class="field">
+                <label>First name</label>
+                <input name="address_first_name" maxlength="80" autocomplete="given-name" required>
+              </div>
+              <div class="field">
+                <label>Last name</label>
+                <input name="address_last_name" maxlength="80" autocomplete="family-name" required>
+              </div>
+            </div>
             <div class="field">
               <label>Address line 1</label>
-              <input name="address_line1" maxlength="120" autocomplete="address-line1">
+              <input name="address_line1" maxlength="120" autocomplete="address-line1" required>
             </div>
             <div class="field">
               <label>Address line 2</label>
@@ -155,18 +165,18 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
             <div class="field-row">
               <div class="field">
                 <label>City</label>
-                <input name="address_city" maxlength="80" autocomplete="address-level2">
+                <input name="address_city" maxlength="80" autocomplete="address-level2" required>
               </div>
               <div class="field">
                 <label>State</label>
-                <input name="address_state" maxlength="2" minlength="2" pattern="[A-Za-z]{2}" placeholder="CO" autocomplete="address-level1">
+                <input name="address_state" maxlength="2" minlength="2" pattern="[A-Za-z]{2}" autocomplete="address-level1" required>
               </div>
               <div class="field">
                 <label>ZIP</label>
-                <input name="address_zip" maxlength="10" pattern="\d{5}(-\d{4})?" placeholder="80202" autocomplete="postal-code">
+                <input name="address_zip" maxlength="10" pattern="\d{5}(-\d{4})?" autocomplete="postal-code" required>
               </div>
             </div>
-            <p class="muted small">Leave blank to skip mailing. If you fill in any field, we need address line 1, city, state, and ZIP.</p>
+            <p class="muted small">A mailing address is required to complete checkout.</p>
           </fieldset>
           <button class="btn btn--primary btn--lg" type="submit">Checkout</button>
         </form>
