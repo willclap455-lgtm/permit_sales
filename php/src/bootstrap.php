@@ -21,11 +21,17 @@ spl_autoload_register(static function (string $class): void {
 // exists wins. This matters on IIS, where the "current working directory"
 // of the FastCGI worker is not necessarily the project root, and where
 // operators sometimes drop .env next to public/index.php by accident.
+//
+// `dirname(__DIR__)` returns native separators on Windows (e.g. `C:\…\php`),
+// so we use `DIRECTORY_SEPARATOR` for the joins to avoid the cosmetically
+// confusing `C:\inetpub\…\php/.env` paths that show up in error diagnostics
+// when forward slashes are concatenated onto a Windows-style prefix.
+$ds = DIRECTORY_SEPARATOR;
 $projectRoot = dirname(__DIR__);
 $envCandidates = [
-    $projectRoot . '/.env',
-    $projectRoot . '/public/.env',
-    $projectRoot . '/../.env',
+    $projectRoot . $ds . '.env',
+    $projectRoot . $ds . 'public' . $ds . '.env',
+    dirname($projectRoot) . $ds . '.env',
 ];
 if (($explicit = getenv('PERMITSALES_ENV_FILE')) !== false && $explicit !== '') {
     array_unshift($envCandidates, $explicit);

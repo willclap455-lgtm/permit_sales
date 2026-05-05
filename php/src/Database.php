@@ -6,6 +6,24 @@ namespace PermitSales;
 
 use PDO;
 
+/**
+ * Wrapper around a string of raw bytes that should be sent to PostgreSQL as
+ * a binary BYTEA, not a UTF-8 TEXT value.
+ *
+ * PDO's default `execute($params)` path binds every value as `PARAM_STR`,
+ * which makes libpq encode the value with the connection's client_encoding.
+ * For random bytes (AES-GCM ciphertext, IVs, auth tags) that nearly always
+ * fails with `invalid byte sequence for encoding "UTF8"`. Wrapping the value
+ * in `BinaryParam` tells `Database::exec()` / `::all()` / `::one()` to bind
+ * it as `PARAM_LOB` instead, which uses the binary protocol.
+ */
+final class BinaryParam
+{
+    public function __construct(public readonly string $bytes)
+    {
+    }
+}
+
 final class Database
 {
     private static ?PDO $pdo = null;
@@ -50,8 +68,8 @@ final class Database
      */
     public static function all(string $sql, array $params = []): array
     {
-        $stmt = self::connection()->prepare($sql);
-        $stmt->execute($params);
+        $stmt = self::prepareAndBind($sql, $params);
+        $stmt->execute();
         return $stmt->fetchAll();
     }
 
@@ -61,8 +79,8 @@ final class Database
      */
     public static function one(string $sql, array $params = []): ?array
     {
-        $stmt = self::connection()->prepare($sql);
-        $stmt->execute($params);
+        $stmt = self::prepareAndBind($sql, $params);
+        $stmt->execute();
         $row = $stmt->fetch();
         return $row === false ? null : $row;
     }
@@ -72,9 +90,47 @@ final class Database
      */
     public static function exec(string $sql, array $params = []): int
     {
-        $stmt = self::connection()->prepare($sql);
-        $stmt->execute($params);
+        $stmt = self::prepareAndBind($sql, $params);
+        $stmt->execute();
         return $stmt->rowCount();
+    }
+
+    /**
+     * Prepare a statement and bind each parameter with the right PDO type.
+     *
+     * Default PDO behaviour is to treat every `execute($params)` value as
+     * `PARAM_STR`, which makes Postgres validate the bytes as UTF-8 even
+     * when the destination column is BYTEA. Random binary (e.g. AES-GCM
+     * ciphertext) then fails with `invalid byte sequence for encoding
+     * "UTF8"`. Wrapping such values in `BinaryParam` routes them through
+     * `PARAM_LOB` so libpq sends them on the binary path.
+     *
+     * @param array<string,mixed> $params
+     */
+    private static function prepareAndBind(string $sql, array $params): \PDOStatement
+    {
+        $stmt = self::connection()->prepare($sql);
+        foreach ($params as $name => $value) {
+            $key = is_int($name) ? $name + 1 : ':' . ltrim((string) $name, ':');
+            if ($value instanceof BinaryParam) {
+                $stmt->bindValue($key, $value->bytes, PDO::PARAM_LOB);
+                continue;
+            }
+            if (is_bool($value)) {
+                $stmt->bindValue($key, $value, PDO::PARAM_BOOL);
+                continue;
+            }
+            if ($value === null) {
+                $stmt->bindValue($key, null, PDO::PARAM_NULL);
+                continue;
+            }
+            if (is_int($value)) {
+                $stmt->bindValue($key, $value, PDO::PARAM_INT);
+                continue;
+            }
+            $stmt->bindValue($key, (string) $value, PDO::PARAM_STR);
+        }
+        return $stmt;
     }
 
     private static function parseHint(string $url): string

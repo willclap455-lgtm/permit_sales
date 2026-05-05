@@ -24,7 +24,11 @@ final class Crypto
     }
 
     /**
-     * @return array{0:string,1:string,2:string} ciphertext, iv, tag (raw bytes)
+     * Encrypt a plaintext string and return ciphertext, IV, and auth tag,
+     * each wrapped in a `BinaryParam` so they are bound to the database as
+     * BYTEA (PDO::PARAM_LOB) rather than as UTF-8 text.
+     *
+     * @return array{0:BinaryParam,1:BinaryParam,2:BinaryParam}
      */
     public static function encrypt(string $plaintext): array
     {
@@ -34,7 +38,7 @@ final class Crypto
         if ($ct === false) {
             throw new \RuntimeException('Encryption failed');
         }
-        return [$ct, $iv, $tag];
+        return [new BinaryParam($ct), new BinaryParam($iv), new BinaryParam($tag)];
     }
 
     public static function decrypt(string $ciphertext, string $iv, string $tag): string
