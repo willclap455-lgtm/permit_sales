@@ -21,7 +21,19 @@ final class OrderController
             $permitTypeId = Request::required('permit_type_id');
             $vehicleId = Request::input('vehicle_id');
             $startsOn = Request::required('starts_on');
-            $address = Request::input('mailing_address');
+            $line1 = Request::input('address_line1');
+            $line2 = Request::input('address_line2');
+            $city  = Request::input('address_city');
+            $state = Request::input('address_state');
+            $zip   = Request::input('address_zip');
+        } catch (ValidationException $e) {
+            Session::flash('error', $e->getMessage());
+            header('Location: /dashboard');
+            return;
+        }
+
+        try {
+            $address = self::buildMailingAddress($line1, $line2, $city, $state, $zip);
         } catch (ValidationException $e) {
             Session::flash('error', $e->getMessage());
             header('Location: /dashboard');
@@ -98,5 +110,61 @@ final class OrderController
 
         Session::flash('success', "Permit {$permitNumber} created — {$type['name']}.");
         header('Location: /dashboard');
+    }
+
+    /**
+     * Combine the five mailing-address fields into a single newline-formatted
+     * string, or return null if every field is blank. If any field is filled,
+     * line 1, city, state, and ZIP are all required and each is sanity-checked.
+     */
+    private static function buildMailingAddress(
+        ?string $line1,
+        ?string $line2,
+        ?string $city,
+        ?string $state,
+        ?string $zip,
+    ): ?string {
+        $line1 = $line1 !== null ? trim($line1) : '';
+        $line2 = $line2 !== null ? trim($line2) : '';
+        $city  = $city  !== null ? trim($city)  : '';
+        $state = $state !== null ? strtoupper(trim($state)) : '';
+        $zip   = $zip   !== null ? trim($zip)   : '';
+
+        $anyFilled = ($line1 . $line2 . $city . $state . $zip) !== '';
+        if (!$anyFilled) {
+            return null;
+        }
+
+        $missing = [];
+        if ($line1 === '') { $missing[] = 'address line 1'; }
+        if ($city  === '') { $missing[] = 'city'; }
+        if ($state === '') { $missing[] = 'state'; }
+        if ($zip   === '') { $missing[] = 'ZIP'; }
+        if ($missing !== []) {
+            throw new ValidationException(
+                'Mailing address is incomplete. Please fill in: ' . implode(', ', $missing) . '.'
+            );
+        }
+
+        if (strlen($line1) > 120 || strlen($line2) > 120) {
+            throw new ValidationException('Mailing address lines must be 120 characters or fewer.');
+        }
+        if (strlen($city) > 80) {
+            throw new ValidationException('City must be 80 characters or fewer.');
+        }
+        if (!preg_match('/^[A-Z]{2}$/', $state)) {
+            throw new ValidationException('State must be a two-letter abbreviation, e.g. CO.');
+        }
+        if (!preg_match('/^\d{5}(-\d{4})?$/', $zip)) {
+            throw new ValidationException('ZIP must look like 80202 or 80202-1234.');
+        }
+
+        $cityLine = "{$city}, {$state} {$zip}";
+        $lines = [$line1];
+        if ($line2 !== '') {
+            $lines[] = $line2;
+        }
+        $lines[] = $cityLine;
+        return implode("\n", $lines);
     }
 }
