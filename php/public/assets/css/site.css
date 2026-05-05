@@ -395,19 +395,20 @@ button { font: inherit; cursor: pointer; }
 .card-panel__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .card-panel__head h2 { margin: 0; font-size: 20px; }
 
-.field { display: grid; gap: 6px; margin-bottom: 14px; }
+.field { display: grid; gap: 6px; margin-bottom: 14px; min-width: 0; }
 .field label { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
 .field input, .field select, .field textarea {
   font: inherit; padding: 10px 12px; border-radius: var(--radius-sm);
   border: 1px solid var(--line); background: var(--paper); color: var(--ink);
   transition: border-color 120ms ease, box-shadow 120ms ease;
+  width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;
 }
 .field input:focus, .field select:focus, .field textarea:focus {
   outline: none; border-color: var(--blueprint); background: #fff;
   box-shadow: 0 0 0 3px var(--blueprint-soft);
 }
 .field-row {
-  display: grid; gap: 12px 24px; grid-template-columns: 1fr;
+  display: grid; gap: 12px 36px; grid-template-columns: 1fr; min-width: 0;
 }
 @media (min-width: 540px) { .field-row { grid-template-columns: repeat(2, 1fr); } }
 .field-row .field { margin-bottom: 0; }
@@ -424,7 +425,7 @@ button { font: inherit; cursor: pointer; }
 @media (min-width: 880px) { .dashboard__head { grid-template-columns: 1fr auto; } }
 .dashboard__quick { display: inline-flex; gap: 10px; }
 .dashboard__grid {
-  display: grid; gap: 18px 28px;
+  display: grid; gap: 18px 40px;
   grid-template-columns: 1fr;
 }
 @media (min-width: 880px) { .dashboard__grid { grid-template-columns: repeat(2, 1fr); } }
@@ -445,6 +446,16 @@ button { font: inherit; cursor: pointer; }
 .permit-order__types {
   display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
+.permit-order__address {
+  display: grid; gap: 12px;
+  margin: 0; padding: 16px;
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--paper); min-width: 0;
+}
+.permit-order__address > legend {
+  padding: 0 8px; font-size: 13px; font-weight: 600; color: var(--ink-soft);
+}
+.permit-order__address .field { margin-bottom: 0; }
 
 .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .data-table th, .data-table td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
