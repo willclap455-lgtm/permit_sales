@@ -28,6 +28,13 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     full_name TEXT NOT NULL,
     phone TEXT,
+    mailing_first_name TEXT,
+    mailing_last_name TEXT,
+    mailing_line1 TEXT,
+    mailing_line2 TEXT,
+    mailing_city TEXT,
+    mailing_state TEXT,
+    mailing_zip TEXT,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     last_login_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -82,6 +89,7 @@ CREATE TABLE IF NOT EXISTS clients (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     slug TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
+    phone TEXT,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -166,6 +174,16 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- These ALTERs are no-ops on a fresh install but bring an older schema
 -- forward when this file is re-imported on top of a previous version.
 -- ---------------------------------------------------------------------
+
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS phone TEXT;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS mailing_first_name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS mailing_last_name  TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS mailing_line1      TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS mailing_line2      TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS mailing_city       TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS mailing_state      TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS mailing_zip        TEXT;
 
 ALTER TABLE permit_types ADD COLUMN IF NOT EXISTS client_id UUID
     REFERENCES clients(id) ON DELETE CASCADE;

@@ -8,6 +8,9 @@ use PermitSales\View;
 /** @var array<int,array<string,mixed>> $clients */
 /** @var array<string,mixed>|null $selectedClient */
 /** @var array<int,array<string,mixed>> $lots */
+/** @var bool $showClientSwitcher */
+/** @var array<string,string> $mailingAddress */
+/** @var bool $hasSavedAddress */
 
 $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
 ?>
@@ -25,14 +28,14 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
       </div>
     </header>
 
-    <?php if (!empty($clients)): ?>
+    <?php if (!empty($showClientSwitcher) && !empty($clients)): ?>
       <section class="client-switcher" aria-label="Choose a client">
         <p class="client-switcher__label">Shopping with:</p>
         <nav class="client-switcher__tabs" role="tablist">
           <?php foreach ($clients as $cli): ?>
             <?php $isActive = ($selectedClient && $cli['id'] === $selectedClient['id']); ?>
             <a
-              class="client-tab<?= $isActive ? ' is-active' : '' ?>"
+              class="btn <?= $isActive ? 'btn--primary' : 'btn--outline' ?> client-tab"
               href="/dashboard?client=<?= View::e($cli['slug']) ?>#order"
               role="tab"
               aria-selected="<?= $isActive ? 'true' : 'false' ?>"
@@ -132,11 +135,15 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
         <header class="card-panel__head">
           <h2>Buy a permit<?= $selectedClient ? ' — ' . View::e($selectedClient['name']) : '' ?></h2>
           <?php if ($selectedClient): ?>
-            <span class="muted small">Permits below are for <?= View::e($selectedClient['name']) ?>. Switch clients above to see other catalogs.</span>
+            <span class="client-context-note small">Permits below are for <?= View::e($selectedClient['name']) ?>.<?= !empty($showClientSwitcher) ? ' Switch clients above to see other catalogs.' : '' ?></span>
           <?php endif; ?>
         </header>
         <?php if (!$selectedClient): ?>
-          <p class="muted">No clients are configured yet — ask an admin to add one.</p>
+          <?php if (empty($clients)): ?>
+            <p class="muted">No clients are configured yet — ask an admin to add one.</p>
+          <?php else: ?>
+            <p class="muted">Pick a location above to see its permit catalog.</p>
+          <?php endif; ?>
         <?php elseif (empty($permitTypes)): ?>
           <p class="muted"><?= View::e($selectedClient['name']) ?> has no active permits yet.</p>
         <?php else: ?>
@@ -184,44 +191,65 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
               <input name="starts_on" type="date" value="<?= date('Y-m-d') ?>" required>
             </div>
           </div>
-          <fieldset class="permit-order__address">
+          <fieldset class="permit-order__address" data-mailing-address<?= $hasSavedAddress ? ' data-saved="1"' : '' ?>>
             <legend>Mailing address</legend>
-            <div class="field-row">
-              <div class="field">
-                <label>First name</label>
-                <input name="address_first_name" maxlength="80" autocomplete="given-name" required>
+            <?php if ($hasSavedAddress): ?>
+              <div class="permit-order__address-summary" data-mailing-summary>
+                <div>
+                  <p class="entity-list__title"><?= View::e($mailingAddress['first_name'] . ' ' . $mailingAddress['last_name']) ?></p>
+                  <p class="muted small">
+                    <?= View::e($mailingAddress['line1']) ?><?php if ($mailingAddress['line2'] !== ''): ?> · <?= View::e($mailingAddress['line2']) ?><?php endif; ?>
+                    <br>
+                    <?= View::e($mailingAddress['city']) ?>, <?= View::e($mailingAddress['state']) ?> <?= View::e($mailingAddress['zip']) ?>
+                  </p>
+                </div>
+                <button type="button" class="btn btn--ghost btn--sm" data-mailing-edit>Edit</button>
+              </div>
+            <?php endif; ?>
+            <div class="permit-order__address-fields" data-mailing-fields<?= $hasSavedAddress ? ' hidden' : '' ?>>
+              <div class="field-row">
+                <div class="field">
+                  <label>First name</label>
+                  <input name="address_first_name" maxlength="80" autocomplete="given-name" value="<?= View::e($mailingAddress['first_name']) ?>" required>
+                </div>
+                <div class="field">
+                  <label>Last name</label>
+                  <input name="address_last_name" maxlength="80" autocomplete="family-name" value="<?= View::e($mailingAddress['last_name']) ?>" required>
+                </div>
               </div>
               <div class="field">
-                <label>Last name</label>
-                <input name="address_last_name" maxlength="80" autocomplete="family-name" required>
+                <label>Address line 1</label>
+                <input name="address_line1" maxlength="120" autocomplete="address-line1" value="<?= View::e($mailingAddress['line1']) ?>" required>
               </div>
+              <div class="field">
+                <label>Address line 2</label>
+                <input name="address_line2" maxlength="120" autocomplete="address-line2" value="<?= View::e($mailingAddress['line2']) ?>">
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label>City</label>
+                  <input name="address_city" maxlength="80" autocomplete="address-level2" value="<?= View::e($mailingAddress['city']) ?>" required>
+                </div>
+                <div class="field">
+                  <label>State</label>
+                  <input name="address_state" maxlength="2" minlength="2" pattern="[A-Za-z]{2}" autocomplete="address-level1" value="<?= View::e($mailingAddress['state']) ?>" required>
+                </div>
+                <div class="field">
+                  <label>ZIP</label>
+                  <input name="address_zip" maxlength="10" pattern="\d{5}(-\d{4})?" autocomplete="postal-code" value="<?= View::e($mailingAddress['zip']) ?>" required>
+                </div>
+              </div>
+              <p class="muted small">A mailing address is required to complete checkout.</p>
             </div>
-            <div class="field">
-              <label>Address line 1</label>
-              <input name="address_line1" maxlength="120" autocomplete="address-line1" required>
-            </div>
-            <div class="field">
-              <label>Address line 2</label>
-              <input name="address_line2" maxlength="120" autocomplete="address-line2">
-            </div>
-            <div class="field-row">
-              <div class="field">
-                <label>City</label>
-                <input name="address_city" maxlength="80" autocomplete="address-level2" required>
-              </div>
-              <div class="field">
-                <label>State</label>
-                <input name="address_state" maxlength="2" minlength="2" pattern="[A-Za-z]{2}" autocomplete="address-level1" required>
-              </div>
-              <div class="field">
-                <label>ZIP</label>
-                <input name="address_zip" maxlength="10" pattern="\d{5}(-\d{4})?" autocomplete="postal-code" required>
-              </div>
-            </div>
-            <p class="muted small">A mailing address is required to complete checkout.</p>
           </fieldset>
           <button class="btn btn--primary btn--lg" type="submit">Submit order</button>
-          <p class="muted small">New orders enter <strong>pending</strong> status until an admin approves and processes the sale.</p>
+          <p class="muted small">
+            New orders enter <strong>pending</strong> status until an admin approves and processes the sale.
+            <?php if ($selectedClient && !empty($selectedClient['phone'])): ?>
+              Call <a href="tel:<?= View::e(preg_replace('/[^0-9+]/', '', (string) $selectedClient['phone'])) ?>"><strong><?= View::e($selectedClient['phone']) ?></strong></a>
+              and tell them you applied for a permit to expedite this process.
+            <?php endif; ?>
+          </p>
         </form>
         <?php endif; ?>
       </section>
