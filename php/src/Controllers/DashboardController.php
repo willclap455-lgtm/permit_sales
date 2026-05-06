@@ -16,9 +16,11 @@ final class DashboardController
         $user = Auth::requireUser();
 
         $clients = Database::all(
-            'SELECT id, slug, name, phone FROM clients
+            "SELECT id, slug, name,
+                    COALESCE(NULLIF(public_phone, ''), phone) AS public_phone
+               FROM clients
               WHERE is_active = TRUE
-              ORDER BY name ASC'
+              ORDER BY name ASC"
         );
 
         // Resolve which client's catalog to display.
