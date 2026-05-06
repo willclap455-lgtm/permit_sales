@@ -41,6 +41,18 @@ php/
    psql "$DATABASE_URL" -f init_schema.sql
    ```
 
+   Existing installs (created before clients/lots) should run the
+   migration in `migrations/` instead:
+
+   ```bash
+   psql "$DATABASE_URL" -f migrations/001_clients_and_lots.sql
+   ```
+
+   The migration adds `clients` and `parking_lots`, scopes
+   `permit_types` per-client (so each client has their own catalog and
+   pricing), seeds `Rancho Cucamonga`, `Covina`, and `Daneville`, and
+   tags every existing `permit_orders` row with the appropriate client.
+
 3. Copy `.env.example` → `.env` and fill in the values.
 4. (Optional) `composer dump-autoload` if you want PSR-4 autoloading via Composer
    instead of the included plain autoloader.
