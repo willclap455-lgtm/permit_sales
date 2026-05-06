@@ -50,6 +50,7 @@ $router->post('/cards/{id}/default', [$cards, 'setDefault']);
 $router->post('/orders', [$orders, 'create']);
 
 $router->get('/admin', [$admin, 'index']);
+$router->get('/admin/customers', [$admin, 'searchCustomers']);
 $router->post('/admin/orders/{id}/approve', [$admin, 'approveOrder']);
 $router->post('/admin/orders/{id}/reject', [$admin, 'rejectOrder']);
 $router->post('/admin/clients', [$admin, 'createClient']);
