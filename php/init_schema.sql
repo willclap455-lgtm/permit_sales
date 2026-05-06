@@ -90,6 +90,9 @@ CREATE TABLE IF NOT EXISTS clients (
     slug TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     phone TEXT,
+    public_phone TEXT,
+    contact_phone TEXT,
+    contact_name TEXT,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -176,6 +179,15 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- ---------------------------------------------------------------------
 
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS public_phone TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS contact_phone TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS contact_name TEXT;
+
+UPDATE clients
+   SET public_phone = phone
+ WHERE public_phone IS NULL
+   AND phone IS NOT NULL
+   AND phone <> '';
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS mailing_first_name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS mailing_last_name  TEXT;

@@ -245,8 +245,8 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
           <button class="btn btn--primary btn--lg" type="submit">Submit order</button>
           <p class="muted small">
             New orders enter <strong>pending</strong> status until an admin approves and processes the sale.
-            <?php if ($selectedClient && !empty($selectedClient['phone'])): ?>
-              Call <a href="tel:<?= View::e(preg_replace('/[^0-9+]/', '', (string) $selectedClient['phone'])) ?>"><strong><?= View::e($selectedClient['phone']) ?></strong></a>
+            <?php if ($selectedClient && !empty($selectedClient['public_phone'])): ?>
+              Call <a href="tel:<?= View::e(preg_replace('/[^0-9+]/', '', (string) $selectedClient['public_phone'])) ?>"><strong><?= View::e($selectedClient['public_phone']) ?></strong></a>
               and tell them you applied for a permit to expedite this process.
             <?php endif; ?>
           </p>

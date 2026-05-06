@@ -12,6 +12,13 @@ use PermitSales\View;
 
 final class AdminController
 {
+    /**
+     * Maximum length we accept for free-form display fields like
+     * the public phone, contact phone, and contact name. Bound it
+     * defensively so a stray paste can't blow up the rendered table.
+     */
+    private const TEXT_MAX = 120;
+
     public function index(): void
     {
         Auth::requireAdmin();
@@ -58,7 +65,9 @@ final class AdminController
         );
 
         $clients = Database::all(
-            "SELECT c.id, c.slug, c.name, c.phone, c.is_active,
+            "SELECT c.id, c.slug, c.name,
+                    c.public_phone, c.contact_phone, c.contact_name,
+                    c.is_active,
                     (SELECT COUNT(*) FROM parking_lots pl
                        WHERE pl.client_id = c.id AND pl.is_active = TRUE) AS lot_count,
                     (SELECT COUNT(*) FROM permit_types pt
@@ -69,12 +78,36 @@ final class AdminController
               ORDER BY c.name ASC"
         );
 
-        $users = Database::all(
-            "SELECT u.id, u.email, u.full_name, u.created_at, u.last_login_at, r.name AS role
-               FROM users u JOIN roles r ON r.id = u.role_id
-              WHERE u.deleted_at IS NULL
-              ORDER BY u.created_at DESC LIMIT 25"
-        );
+        // Customers section: optionally filtered by name / email /
+        // phone with case-insensitive substring matches. We bump the
+        // result cap when a query is active so admins can actually
+        // *find* a customer that's not in the most-recent 25.
+        $customerQ = Request::input('customer_q');
+        $customerQ = $customerQ !== null ? trim($customerQ) : '';
+
+        if ($customerQ !== '') {
+            $users = Database::all(
+                "SELECT u.id, u.email, u.full_name, u.phone,
+                        u.created_at, u.last_login_at, r.name AS role
+                   FROM users u JOIN roles r ON r.id = u.role_id
+                  WHERE u.deleted_at IS NULL
+                    AND (u.full_name ILIKE :q
+                      OR u.email     ILIKE :q
+                      OR COALESCE(u.phone, '') ILIKE :q)
+                  ORDER BY u.created_at DESC
+                  LIMIT 100",
+                ['q' => '%' . $customerQ . '%']
+            );
+        } else {
+            $users = Database::all(
+                "SELECT u.id, u.email, u.full_name, u.phone,
+                        u.created_at, u.last_login_at, r.name AS role
+                   FROM users u JOIN roles r ON r.id = u.role_id
+                  WHERE u.deleted_at IS NULL
+                  ORDER BY u.created_at DESC
+                  LIMIT 25"
+            );
+        }
 
         View::render('admin/index', [
             'title'         => 'Admin — PermitSales',
@@ -83,6 +116,7 @@ final class AdminController
             'recentOrders'  => $recentOrders,
             'clients'       => $clients,
             'users'         => $users,
+            'customerQ'     => $customerQ,
         ]);
     }
 
@@ -173,11 +207,125 @@ final class AdminController
     }
 
     /**
-     * Update a client's customer-support phone number. The dashboard
-     * surfaces this number to customers as the line they can call to
-     * expedite their pending permit, so it's worth keeping current.
+     * Render the standalone client editor. Each row in the admin
+     * console's clients table links here so admins can edit *every*
+     * field on a client (name, slug, phones, contact, status) instead
+     * of only the inline phone field.
+     */
+    public function editClient(array $params): void
+    {
+        Auth::requireAdmin();
+
+        $clientId = $params['id'] ?? null;
+        if (!is_string($clientId) || $clientId === '') {
+            Session::flash('error', 'Missing client id.');
+            header('Location: /admin');
+            return;
+        }
+
+        $client = Database::one(
+            'SELECT id, slug, name, public_phone, contact_phone, contact_name, is_active
+               FROM clients WHERE id = :id',
+            ['id' => $clientId]
+        );
+        if ($client === null) {
+            Session::flash('error', 'Client not found.');
+            header('Location: /admin');
+            return;
+        }
+
+        View::render('admin/client_edit', [
+            'title'  => 'Edit client — PermitSales',
+            'client' => $client,
+        ]);
+    }
+
+    /**
+     * Create a new client from the admin console's "+ Add" form.
+     * Mirrors the customer-side "add a vehicle" UX: validate, write,
+     * flash, redirect back to the listing.
      *
-     * Submits as `phone=...`; an empty value clears the saved number.
+     * Slug is optional on the form — if omitted we derive one from
+     * the client name (lowercase, non-alphanumerics → dashes).
+     */
+    public function createClient(): void
+    {
+        Request::checkCsrf();
+        Auth::requireAdmin();
+
+        $name = trim((string) Request::input('name', ''));
+        if ($name === '') {
+            Session::flash('error', 'Client name is required.');
+            header('Location: /admin');
+            return;
+        }
+        if (mb_strlen($name) > self::TEXT_MAX) {
+            Session::flash('error', 'Client name is too long.');
+            header('Location: /admin');
+            return;
+        }
+
+        $slugInput = trim((string) Request::input('slug', ''));
+        $slug = $slugInput !== '' ? $slugInput : self::slugify($name);
+        if (!self::isValidSlug($slug)) {
+            Session::flash(
+                'error',
+                'Slug must be lowercase letters, numbers, and dashes (e.g. "my-client").'
+            );
+            header('Location: /admin');
+            return;
+        }
+
+        $existing = Database::one(
+            'SELECT id FROM clients WHERE slug = :slug',
+            ['slug' => $slug]
+        );
+        if ($existing !== null) {
+            Session::flash('error', "A client with slug \"{$slug}\" already exists.");
+            header('Location: /admin');
+            return;
+        }
+
+        $publicPhone  = self::cleanPhone(Request::input('public_phone'));
+        $contactPhone = self::cleanPhone(Request::input('contact_phone'));
+        $contactName  = self::cleanText(Request::input('contact_name'));
+
+        if ($publicPhone === false || $contactPhone === false) {
+            Session::flash('error', 'Phone numbers must be 32 characters or fewer with at least 3 digits.');
+            header('Location: /admin');
+            return;
+        }
+        if ($contactName === false) {
+            Session::flash('error', 'Contact name is too long.');
+            header('Location: /admin');
+            return;
+        }
+
+        $isActive = Request::input('is_active') !== null;
+
+        Database::exec(
+            'INSERT INTO clients (slug, name, public_phone, contact_phone, contact_name, is_active)
+             VALUES (:slug, :name, :public_phone, :contact_phone, :contact_name, :active)',
+            [
+                'slug'          => $slug,
+                'name'          => $name,
+                'public_phone'  => $publicPhone !== '' ? $publicPhone : null,
+                'contact_phone' => $contactPhone !== '' ? $contactPhone : null,
+                'contact_name'  => $contactName !== '' ? $contactName : null,
+                'active'        => $isActive,
+            ]
+        );
+
+        Session::flash('success', "Added client {$name}.");
+        header('Location: /admin');
+    }
+
+    /**
+     * Update every editable field on a client: name, slug, public
+     * phone (shown to customers), contact phone + contact name (the
+     * client's internal account manager), and active status.
+     *
+     * Submitted from the dedicated edit page (/admin/clients/{id}/edit).
      */
     public function updateClient(array $params): void
     {
@@ -192,7 +340,7 @@ final class AdminController
         }
 
         $client = Database::one(
-            'SELECT id, name FROM clients WHERE id = :id',
+            'SELECT id, name, slug FROM clients WHERE id = :id',
             ['id' => $clientId]
         );
         if ($client === null) {
@@ -201,35 +349,138 @@ final class AdminController
             return;
         }
 
-        $phoneRaw = Request::input('phone');
-        $phone = $phoneRaw !== null ? trim($phoneRaw) : '';
-        if ($phone !== '') {
-            // Light validation only — admins type these as a free-form
-            // display string ("(909) 555-0102") so we just bound the
-            // length and require *some* digits.
-            if (strlen($phone) > 32) {
-                Session::flash('error', 'Phone number must be 32 characters or fewer.');
-                header('Location: /admin');
-                return;
-            }
-            if (!preg_match('/[0-9]{3,}/', $phone)) {
-                Session::flash('error', 'Phone number must contain at least 3 digits.');
-                header('Location: /admin');
+        $editUrl = '/admin/clients/' . $clientId . '/edit';
+
+        $name = trim((string) Request::input('name', ''));
+        if ($name === '') {
+            Session::flash('error', 'Client name is required.');
+            header('Location: ' . $editUrl);
+            return;
+        }
+        if (mb_strlen($name) > self::TEXT_MAX) {
+            Session::flash('error', 'Client name is too long.');
+            header('Location: ' . $editUrl);
+            return;
+        }
+
+        $slug = trim((string) Request::input('slug', ''));
+        if ($slug === '') {
+            $slug = self::slugify($name);
+        }
+        if (!self::isValidSlug($slug)) {
+            Session::flash(
+                'error',
+                'Slug must be lowercase letters, numbers, and dashes (e.g. "my-client").'
+            );
+            header('Location: ' . $editUrl);
+            return;
+        }
+
+        if ($slug !== $client['slug']) {
+            $clash = Database::one(
+                'SELECT id FROM clients WHERE slug = :slug AND id <> :id',
+                ['slug' => $slug, 'id' => $clientId]
+            );
+            if ($clash !== null) {
+                Session::flash('error', "Another client already uses slug \"{$slug}\".");
+                header('Location: ' . $editUrl);
                 return;
             }
         }
 
+        $publicPhone  = self::cleanPhone(Request::input('public_phone'));
+        $contactPhone = self::cleanPhone(Request::input('contact_phone'));
+        $contactName  = self::cleanText(Request::input('contact_name'));
+
+        if ($publicPhone === false || $contactPhone === false) {
+            Session::flash('error', 'Phone numbers must be 32 characters or fewer with at least 3 digits.');
+            header('Location: ' . $editUrl);
+            return;
+        }
+        if ($contactName === false) {
+            Session::flash('error', 'Contact name is too long.');
+            header('Location: ' . $editUrl);
+            return;
+        }
+
+        $isActive = Request::input('is_active') !== null;
+
         Database::exec(
-            'UPDATE clients SET phone = :phone WHERE id = :id',
-            ['phone' => $phone !== '' ? $phone : null, 'id' => $clientId]
+            'UPDATE clients
+                SET name          = :name,
+                    slug          = :slug,
+                    public_phone  = :public_phone,
+                    contact_phone = :contact_phone,
+                    contact_name  = :contact_name,
+                    is_active     = :active
+              WHERE id = :id',
+            [
+                'name'          => $name,
+                'slug'          => $slug,
+                'public_phone'  => $publicPhone !== '' ? $publicPhone : null,
+                'contact_phone' => $contactPhone !== '' ? $contactPhone : null,
+                'contact_name'  => $contactName !== '' ? $contactName : null,
+                'active'        => $isActive,
+                'id'            => $clientId,
+            ]
         );
 
-        Session::flash(
-            'success',
-            $phone === ''
-                ? "Cleared phone number for {$client['name']}."
-                : "Updated phone number for {$client['name']}."
-        );
+        Session::flash('success', "Updated client {$name}.");
         header('Location: /admin');
+    }
+
+    /**
+     * Validate + lightly normalize a phone number coming from a
+     * free-form admin input. Returns:
+     *   - the trimmed string (possibly '') on success
+     *   - false  if it fails validation
+     */
+    private static function cleanPhone(?string $raw): string|false
+    {
+        $val = $raw !== null ? trim($raw) : '';
+        if ($val === '') {
+            return '';
+        }
+        if (strlen($val) > 32) {
+            return false;
+        }
+        if (!preg_match('/[0-9]{3,}/', $val)) {
+            return false;
+        }
+        return $val;
+    }
+
+    /**
+     * Bound a free-form text field to TEXT_MAX. Returns:
+     *   - the trimmed string (possibly '') on success
+     *   - false  if too long
+     */
+    private static function cleanText(?string $raw): string|false
+    {
+        $val = $raw !== null ? trim($raw) : '';
+        if ($val === '') {
+            return '';
+        }
+        if (mb_strlen($val) > self::TEXT_MAX) {
+            return false;
+        }
+        return $val;
+    }
+
+    private static function isValidSlug(string $slug): bool
+    {
+        return (bool) preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $slug);
+    }
+
+    /**
+     * Convert "Rancho Cucamonga" → "rancho-cucamonga" for the slug
+     * field's auto-derive path. Anything outside [a-z0-9] becomes a
+     * dash, runs of dashes collapse, and we trim leading/trailing.
+     */
+    private static function slugify(string $value): string
+    {
+        $lower = mb_strtolower($value, 'UTF-8');
+        $slug = preg_replace('/[^a-z0-9]+/', '-', $lower) ?? '';
+        return trim($slug, '-');
     }
 }

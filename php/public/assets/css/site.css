@@ -518,18 +518,54 @@ button { font: inherit; cursor: pointer; }
 .stat--accent { background: var(--ink); color: #fff; }
 .stat--accent .stat__label { color: rgba(255,255,255,0.6); }
 
-/* Inline "edit phone" form inside the admin Clients table. */
-.client-phone-form { display: inline-flex; gap: 6px; align-items: center; margin: 0; }
-.client-phone-form input[type="tel"] {
-  font: inherit; padding: 6px 10px; border-radius: var(--radius-sm);
+/* Clickable rows (admin Clients table): an entire <tr> behaves like
+   a link to the row's edit page. */
+.data-table--clickable .data-table__row--link { cursor: pointer; transition: background-color 120ms ease; }
+.data-table--clickable .data-table__row--link:hover,
+.data-table--clickable .data-table__row--link:focus-visible {
+  background: var(--blueprint-soft); outline: none;
+}
+.data-table--clickable .data-table__row--link:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--blueprint);
+}
+.data-table__row-edit {
+  margin-left: 8px;
+  font-size: 12px;
+  vertical-align: middle;
+}
+.client-row-hint { margin: 0 0 12px; }
+
+/* Inline "Add client" form is shown via the same data-toggle pattern
+   as the customer dashboard; this keeps a small checkbox styled
+   inline rather than as a stretched field. */
+.checkbox-row {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 14px; color: var(--ink-soft);
+  padding: 6px 0;
+}
+.checkbox-row input[type="checkbox"] { width: 16px; height: 16px; }
+
+/* Customer search bar — sits above the customers table. */
+.customer-search {
+  display: flex; gap: 8px; align-items: center;
+  margin: 0 0 14px; flex-wrap: wrap;
+}
+.customer-search input[type="search"] {
+  flex: 1 1 260px;
+  font: inherit; padding: 10px 14px; border-radius: 999px;
   border: 1px solid var(--line); background: var(--paper); color: var(--ink);
-  width: 160px; max-width: 100%;
+  min-width: 0;
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
-.client-phone-form input[type="tel"]:focus {
+.customer-search input[type="search"]:focus {
   outline: none; border-color: var(--blueprint); background: #fff;
   box-shadow: 0 0 0 3px var(--blueprint-soft);
 }
+
+/* Standalone client editor page. */
+.client-edit-panel { margin-top: 12px; }
+.client-edit-form { display: grid; gap: 18px; }
+.client-edit-form__actions { display: flex; gap: 12px; align-items: center; }
 
 /* ------------------------------------------------------------------
    Contact / day pass

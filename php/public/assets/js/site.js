@@ -65,6 +65,34 @@
                 .find('input').first().trigger('focus');
         });
 
+        // Clickable table rows: any <tr> with [data-href] navigates to
+        // that URL when clicked or activated via keyboard. Used in the
+        // admin Clients table so the whole row is the edit affordance.
+        $(document).on('click', '[data-href]', function (e) {
+            // Don't hijack clicks on links/buttons/forms inside the row.
+            var $target = $(e.target);
+            if ($target.closest('a, button, input, select, textarea, label, form').length) {
+                return;
+            }
+            var href = $(this).data('href');
+            if (href) {
+                window.location.href = href;
+            }
+        });
+        $(document).on('keydown', '[data-href]', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                var $target = $(e.target);
+                if ($target.closest('a, button, input, select, textarea').length) {
+                    return;
+                }
+                e.preventDefault();
+                var href = $(this).data('href');
+                if (href) {
+                    window.location.href = href;
+                }
+            }
+        });
+
         // Auto-dismiss flash messages after 5 seconds.
         setTimeout(function () {
             $('.flash').slideUp(300, function () { $(this).remove(); });

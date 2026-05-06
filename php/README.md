@@ -49,9 +49,11 @@ php/
    with a Main lot and the 5-tier permit catalog each, and tag every
    existing `permit_orders` row with the appropriate client.
 
-   `migrations/001_clients_and_lots.sql` is shipped as well for teams
-   that prefer running upgrades as discrete migrations, but it is
-   redundant with `init_schema.sql` — pick one.
+   `migrations/001_clients_and_lots.sql`,
+   `migrations/002_client_phone_and_user_mailing_address.sql`, and
+   `migrations/003_clients_contact_info.sql` are shipped as well for
+   teams that prefer running upgrades as discrete migrations, but they
+   are redundant with `init_schema.sql` — pick one.
 
 3. Copy `.env.example` → `.env` and fill in the values.
 4. (Optional) `composer dump-autoload` if you want PSR-4 autoloading via Composer
