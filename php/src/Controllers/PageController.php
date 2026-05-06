@@ -11,11 +11,18 @@ final class PageController
 {
     public function home(): void
     {
+        // The home page shows a sample catalog. With per-client pricing we
+        // pick the first active client's catalog as a representative
+        // example; the actual customer-facing catalog lives behind
+        // /dashboard?client=<slug>.
         $permitTypes = Database::all(
-            'SELECT id, code, name, description, cents_price, duration_days
-               FROM permit_types
-              WHERE is_active = TRUE
-              ORDER BY cents_price ASC'
+            'SELECT pt.id, pt.code, pt.name, pt.description, pt.cents_price, pt.duration_days
+               FROM permit_types pt
+               JOIN clients c ON c.id = pt.client_id
+              WHERE pt.is_active = TRUE AND c.is_active = TRUE
+                AND c.id = (SELECT id FROM clients WHERE is_active = TRUE
+                             ORDER BY name ASC LIMIT 1)
+              ORDER BY pt.cents_price ASC'
         );
         View::render('pages/home', [
             'title'       => 'PermitSales — Online Parking Permits',
@@ -51,8 +58,12 @@ final class PageController
     public function dayPass(): void
     {
         $type = Database::one(
-            "SELECT id, code, name, description, cents_price, duration_days
-               FROM permit_types WHERE code = 'DAY' AND is_active = TRUE"
+            "SELECT pt.id, pt.code, pt.name, pt.description, pt.cents_price, pt.duration_days
+               FROM permit_types pt
+               JOIN clients c ON c.id = pt.client_id
+              WHERE pt.code = 'DAY' AND pt.is_active = TRUE AND c.is_active = TRUE
+              ORDER BY pt.cents_price ASC
+              LIMIT 1"
         );
         View::render('pages/day_pass', [
             'title' => 'Single-Day Pass — PermitSales',

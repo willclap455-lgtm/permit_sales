@@ -18,7 +18,9 @@ final class OrderController
         $user = Auth::requireUser();
 
         try {
+            $clientId = Request::required('client_id');
             $permitTypeId = Request::required('permit_type_id');
+            $lotId = Request::input('lot_id');
             $vehicleId = Request::input('vehicle_id');
             $startsOn = Request::required('starts_on');
             $firstName = Request::input('address_first_name');
@@ -44,21 +46,48 @@ final class OrderController
             return;
         }
 
-        $type = Database::one(
-            'SELECT id, name, cents_price, duration_days
-               FROM permit_types WHERE id = :id AND is_active = TRUE',
-            ['id' => $permitTypeId]
+        $client = Database::one(
+            'SELECT id, slug, name FROM clients
+              WHERE id = :id AND is_active = TRUE',
+            ['id' => $clientId]
         );
-        if ($type === null) {
-            Session::flash('error', 'Selected permit type is no longer available.');
+        if ($client === null) {
+            Session::flash('error', 'Selected client is no longer available.');
             header('Location: /dashboard');
             return;
+        }
+
+        $type = Database::one(
+            'SELECT id, name, cents_price, duration_days, client_id
+               FROM permit_types
+              WHERE id = :id AND is_active = TRUE AND client_id = :cid',
+            ['id' => $permitTypeId, 'cid' => $client['id']]
+        );
+        if ($type === null) {
+            Session::flash('error', 'Selected permit type is not available for this client.');
+            header('Location: /dashboard?client=' . urlencode((string) $client['slug']));
+            return;
+        }
+
+        $resolvedLotId = null;
+        if ($lotId !== null && $lotId !== '') {
+            $lot = Database::one(
+                'SELECT id FROM parking_lots
+                  WHERE id = :id AND client_id = :cid AND is_active = TRUE',
+                ['id' => $lotId, 'cid' => $client['id']]
+            );
+            if ($lot === null) {
+                Session::flash('error', 'Selected parking lot is not available for this client.');
+                header('Location: /dashboard?client=' . urlencode((string) $client['slug']));
+                return;
+            }
+            $resolvedLotId = $lot['id'];
         }
 
         $startsTs = strtotime($startsOn);
         if ($startsTs === false) {
             Session::flash('error', 'Invalid start date.');
-            header('Location: /dashboard');
+            header('Location: /dashboard?client=' . urlencode((string) $client['slug']));
             return;
         }
         $endsTs = $startsTs + ((int) $type['duration_days'] * 86400) - 1;
@@ -73,14 +102,15 @@ final class OrderController
             );
             if ($owns === null) {
                 Session::flash('error', 'Selected vehicle is invalid.');
-                header('Location: /dashboard');
+                header('Location: /dashboard?client=' . urlencode((string) $client['slug']));
                 return;
             }
         }
 
-        // No longer collected from the form — auto-select the user's default
-        // (or most-recent) saved card on file. Falls back to null, in which
-        // case the order is created in `pending` status and can be paid later.
+        // Pull the customer's default-or-most-recent saved card so we can
+        // attach it to the order. We *do not* charge it yet — every order
+        // enters `pending` and waits for an admin to approve and process
+        // the sale from the operator console.
         $defaultCard = Database::one(
             'SELECT id FROM credit_cards
               WHERE user_id = :uid AND deleted_at IS NULL
@@ -94,16 +124,19 @@ final class OrderController
 
         Database::exec(
             'INSERT INTO permit_orders
-                (user_id, vehicle_id, permit_type_id, credit_card_id, status,
-                 permit_number, cents_total, starts_on, ends_on, mailing_address)
+                (user_id, client_id, lot_id, vehicle_id, permit_type_id, credit_card_id,
+                 status, permit_number, cents_total, starts_on, ends_on, mailing_address)
              VALUES
-                (:uid, :vid, :tid, :cid, :status, :pn, :cents, :start, :end, :addr)',
+                (:uid, :cid, :lid, :vid, :tid, :card,
+                 :status, :pn, :cents, :start, :end, :addr)',
             [
                 'uid'    => $user['id'],
+                'cid'    => $client['id'],
+                'lid'    => $resolvedLotId,
                 'vid'    => $vehicleId ?: null,
                 'tid'    => $type['id'],
-                'cid'    => $cardId ?: null,
-                'status' => $cardId ? 'paid' : 'pending',
+                'card'   => $cardId ?: null,
+                'status' => 'pending',
                 'pn'     => $permitNumber,
                 'cents'  => $type['cents_price'],
                 'start'  => $startsOn,
@@ -112,8 +145,12 @@ final class OrderController
             ]
         );
 
-        Session::flash('success', "Permit {$permitNumber} created — {$type['name']}.");
-        header('Location: /dashboard');
+        Session::flash(
+            'success',
+            "Permit {$permitNumber} submitted for {$client['name']} — {$type['name']}. "
+            . 'It will appear in your account once an admin approves the sale.'
+        );
+        header('Location: /dashboard?client=' . urlencode((string) $client['slug']));
     }
 
     /**

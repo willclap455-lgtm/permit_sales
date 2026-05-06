@@ -68,21 +68,50 @@ CREATE TABLE credit_cards (
     CONSTRAINT credit_cards_display_last_four CHECK (display_last_four ~ '^[0-9]{4}$')
 );
 
+CREATE TABLE clients (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slug TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT clients_slug_format CHECK (slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$')
+);
+
+CREATE TABLE parking_lots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    address TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (client_id, code)
+);
+
+-- Permit types are now scoped per-client. Each client owns their own
+-- catalog (with their own names, codes, and prices) so two clients can
+-- both have, e.g., a "Monthly Permit" priced however they like.
 CREATE TABLE permit_types (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code TEXT NOT NULL UNIQUE,
+    client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     cents_price INTEGER NOT NULL CHECK (cents_price >= 0),
     duration_days INTEGER NOT NULL CHECK (duration_days > 0),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (client_id, code)
 );
 
 CREATE TABLE permit_orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    client_id UUID NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,
+    lot_id UUID REFERENCES parking_lots(id) ON DELETE SET NULL,
     vehicle_id UUID REFERENCES vehicles(id) ON DELETE SET NULL,
     permit_type_id UUID NOT NULL REFERENCES permit_types(id) ON DELETE RESTRICT,
     credit_card_id UUID REFERENCES credit_cards(id) ON DELETE SET NULL,
@@ -94,6 +123,8 @@ CREATE TABLE permit_orders (
     ends_on DATE NOT NULL,
     mailing_address TEXT,
     notes TEXT,
+    approved_at TIMESTAMPTZ,
+    approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT permit_orders_dates_valid CHECK (ends_on >= starts_on)
@@ -120,6 +151,11 @@ CREATE TABLE audit_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE INDEX idx_clients_active ON clients(is_active);
+CREATE INDEX idx_parking_lots_client_id ON parking_lots(client_id);
+CREATE INDEX idx_permit_types_client_id ON permit_types(client_id);
+CREATE INDEX idx_permit_orders_client_id ON permit_orders(client_id);
+CREATE INDEX idx_permit_orders_lot_id ON permit_orders(lot_id);
 CREATE INDEX idx_users_role_id ON users(role_id);
 CREATE INDEX idx_users_active ON users(is_active) WHERE deleted_at IS NULL;
 CREATE INDEX idx_vehicles_user_id ON vehicles(user_id);
@@ -157,6 +193,14 @@ CREATE TRIGGER trg_credit_cards_updated_at
 BEFORE UPDATE ON credit_cards
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+CREATE TRIGGER trg_clients_updated_at
+BEFORE UPDATE ON clients
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER trg_parking_lots_updated_at
+BEFORE UPDATE ON parking_lots
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
 CREATE TRIGGER trg_permit_types_updated_at
 BEFORE UPDATE ON permit_types
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
@@ -171,11 +215,34 @@ VALUES
     ('user', 'Monthly parking customer who manages vehicles, payment cards, and permit orders.')
 ON CONFLICT (name) DO NOTHING;
 
-INSERT INTO permit_types (code, name, description, cents_price, duration_days)
+-- Seed three demo clients. Each client owns their own parking lots and
+-- their own permit catalog so prices/names/codes can drift over time.
+INSERT INTO clients (slug, name)
 VALUES
-    ('DAY',     'Day Pass',           'Single 24-hour parking permit, mailed-free digital pass.',     900,    1),
-    ('WEEK',    'Weekly Permit',      '7-day parking permit for short-term stays and visitors.',    3500,    7),
-    ('MONTH',   'Monthly Permit',     'Reserved monthly parking with renewable auto-billing.',     11500,   30),
-    ('QUARTER', 'Quarterly Permit',   '90-day permit with priority enforcement support.',          31500,   90),
-    ('ANNUAL',  'Annual Permit',      'Best-value yearly permit, priced for committed commuters.', 99000,  365)
-ON CONFLICT (code) DO NOTHING;
+    ('rancho-cucamonga', 'Rancho Cucamonga'),
+    ('covina',           'Covina'),
+    ('daneville',        'Daneville')
+ON CONFLICT (slug) DO NOTHING;
+
+-- A starter parking lot for each seeded client. Admins can rename/add more.
+INSERT INTO parking_lots (client_id, code, name, address)
+SELECT c.id, 'MAIN', c.name || ' Main Lot', NULL
+  FROM clients c
+ WHERE c.slug IN ('rancho-cucamonga', 'covina', 'daneville')
+ON CONFLICT (client_id, code) DO NOTHING;
+
+-- Default permit catalog seeded per-client. Prices intentionally vary
+-- between clients to demonstrate that each client controls their own
+-- pricing.
+INSERT INTO permit_types (client_id, code, name, description, cents_price, duration_days)
+SELECT c.id, t.code, t.name, t.description, t.cents_price, t.duration_days
+  FROM clients c
+  CROSS JOIN (VALUES
+        ('DAY',     'Day Pass',           'Single 24-hour parking permit, mailed-free digital pass.',      900,   1),
+        ('WEEK',    'Weekly Permit',      '7-day parking permit for short-term stays and visitors.',     3500,   7),
+        ('MONTH',   'Monthly Permit',     'Reserved monthly parking with renewable auto-billing.',      11500,  30),
+        ('QUARTER', 'Quarterly Permit',   '90-day permit with priority enforcement support.',           31500,  90),
+        ('ANNUAL',  'Annual Permit',      'Best-value yearly permit, priced for committed commuters.',  99000, 365)
+   ) AS t(code, name, description, cents_price, duration_days)
+ WHERE c.slug IN ('rancho-cucamonga', 'covina', 'daneville')
+ON CONFLICT (client_id, code) DO NOTHING;
