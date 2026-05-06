@@ -41,17 +41,17 @@ php/
    psql "$DATABASE_URL" -f init_schema.sql
    ```
 
-   Existing installs (created before clients/lots) should run the
-   migration in `migrations/` instead:
+   `init_schema.sql` is **idempotent**: it is safe to import on a fresh
+   database *or* on top of an existing install. Re-importing on a
+   pre-clients schema will add the `clients`, `parking_lots`,
+   `client_id`, `lot_id`, and `approved_at` / `approved_by` columns,
+   seed three demo clients (`Rancho Cucamonga`, `Covina`, `Daneville`)
+   with a Main lot and the 5-tier permit catalog each, and tag every
+   existing `permit_orders` row with the appropriate client.
 
-   ```bash
-   psql "$DATABASE_URL" -f migrations/001_clients_and_lots.sql
-   ```
-
-   The migration adds `clients` and `parking_lots`, scopes
-   `permit_types` per-client (so each client has their own catalog and
-   pricing), seeds `Rancho Cucamonga`, `Covina`, and `Daneville`, and
-   tags every existing `permit_orders` row with the appropriate client.
+   `migrations/001_clients_and_lots.sql` is shipped as well for teams
+   that prefer running upgrades as discrete migrations, but it is
+   redundant with `init_schema.sql` — pick one.
 
 3. Copy `.env.example` → `.env` and fill in the values.
 4. (Optional) `composer dump-autoload` if you want PSR-4 autoloading via Composer

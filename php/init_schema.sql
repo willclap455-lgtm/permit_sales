@@ -1,9 +1,19 @@
 -- PermitSales (PHP edition) PostgreSQL initialization schema.
--- Import manually with: psql "$DATABASE_URL" -f init_schema.sql
+--
+-- Safe to import on either a fresh database or on top of an existing
+-- install. Tables, indexes, triggers, and seed data are all guarded so
+-- re-importing this file is idempotent and will upgrade an older
+-- (pre-clients) schema in place.
+--
+--   psql "$DATABASE_URL" -f init_schema.sql
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE roles (
+-- ---------------------------------------------------------------------
+-- Tables
+-- ---------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS roles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL UNIQUE CHECK (name IN ('admin', 'user')),
     description TEXT,
@@ -11,7 +21,7 @@ CREATE TABLE roles (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     role_id UUID NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
     email TEXT NOT NULL UNIQUE,
@@ -26,7 +36,7 @@ CREATE TABLE users (
     CONSTRAINT users_email_format CHECK (email ~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$')
 );
 
-CREATE TABLE vehicles (
+CREATE TABLE IF NOT EXISTS vehicles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     make TEXT NOT NULL,
@@ -41,7 +51,7 @@ CREATE TABLE vehicles (
     CONSTRAINT vehicles_license_plate_not_blank CHECK (length(trim(license_plate)) > 0)
 );
 
-CREATE TABLE credit_cards (
+CREATE TABLE IF NOT EXISTS credit_cards (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     cardholder_name TEXT NOT NULL,
@@ -68,7 +78,7 @@ CREATE TABLE credit_cards (
     CONSTRAINT credit_cards_display_last_four CHECK (display_last_four ~ '^[0-9]{4}$')
 );
 
-CREATE TABLE clients (
+CREATE TABLE IF NOT EXISTS clients (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     slug TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
@@ -78,7 +88,7 @@ CREATE TABLE clients (
     CONSTRAINT clients_slug_format CHECK (slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$')
 );
 
-CREATE TABLE parking_lots (
+CREATE TABLE IF NOT EXISTS parking_lots (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
     code TEXT NOT NULL,
@@ -90,12 +100,12 @@ CREATE TABLE parking_lots (
     UNIQUE (client_id, code)
 );
 
--- Permit types are now scoped per-client. Each client owns their own
+-- Permit types are scoped per-client. Each client owns their own
 -- catalog (with their own names, codes, and prices) so two clients can
 -- both have, e.g., a "Monthly Permit" priced however they like.
-CREATE TABLE permit_types (
+CREATE TABLE IF NOT EXISTS permit_types (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    client_id UUID REFERENCES clients(id) ON DELETE CASCADE,
     code TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
@@ -103,14 +113,13 @@ CREATE TABLE permit_types (
     duration_days INTEGER NOT NULL CHECK (duration_days > 0),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (client_id, code)
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE permit_orders (
+CREATE TABLE IF NOT EXISTS permit_orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    client_id UUID NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,
+    client_id UUID REFERENCES clients(id) ON DELETE RESTRICT,
     lot_id UUID REFERENCES parking_lots(id) ON DELETE SET NULL,
     vehicle_id UUID REFERENCES vehicles(id) ON DELETE SET NULL,
     permit_type_id UUID NOT NULL REFERENCES permit_types(id) ON DELETE RESTRICT,
@@ -130,7 +139,7 @@ CREATE TABLE permit_orders (
     CONSTRAINT permit_orders_dates_valid CHECK (ends_on >= starts_on)
 );
 
-CREATE TABLE auth_sessions (
+CREATE TABLE IF NOT EXISTS auth_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash TEXT NOT NULL UNIQUE,
@@ -141,7 +150,7 @@ CREATE TABLE auth_sessions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     action TEXT NOT NULL,
@@ -151,23 +160,49 @@ CREATE TABLE audit_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_clients_active ON clients(is_active);
-CREATE INDEX idx_parking_lots_client_id ON parking_lots(client_id);
-CREATE INDEX idx_permit_types_client_id ON permit_types(client_id);
-CREATE INDEX idx_permit_orders_client_id ON permit_orders(client_id);
-CREATE INDEX idx_permit_orders_lot_id ON permit_orders(lot_id);
-CREATE INDEX idx_users_role_id ON users(role_id);
-CREATE INDEX idx_users_active ON users(is_active) WHERE deleted_at IS NULL;
-CREATE INDEX idx_vehicles_user_id ON vehicles(user_id);
-CREATE INDEX idx_vehicles_license_plate ON vehicles(upper(license_plate)) WHERE deleted_at IS NULL;
-CREATE INDEX idx_credit_cards_user_id ON credit_cards(user_id);
-CREATE INDEX idx_credit_cards_default ON credit_cards(user_id, is_default) WHERE deleted_at IS NULL;
-CREATE INDEX idx_permit_orders_user_id ON permit_orders(user_id);
-CREATE INDEX idx_permit_orders_status ON permit_orders(status);
-CREATE INDEX idx_auth_sessions_user_id ON auth_sessions(user_id);
-CREATE INDEX idx_auth_sessions_expires_at ON auth_sessions(expires_at);
-CREATE INDEX idx_audit_logs_actor_user_id ON audit_logs(actor_user_id);
-CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+-- ---------------------------------------------------------------------
+-- Schema upgrades for legacy (pre-clients) installs
+--
+-- These ALTERs are no-ops on a fresh install but bring an older schema
+-- forward when this file is re-imported on top of a previous version.
+-- ---------------------------------------------------------------------
+
+ALTER TABLE permit_types ADD COLUMN IF NOT EXISTS client_id UUID
+    REFERENCES clients(id) ON DELETE CASCADE;
+
+ALTER TABLE permit_orders ADD COLUMN IF NOT EXISTS client_id UUID
+    REFERENCES clients(id) ON DELETE RESTRICT;
+ALTER TABLE permit_orders ADD COLUMN IF NOT EXISTS lot_id UUID
+    REFERENCES parking_lots(id) ON DELETE SET NULL;
+ALTER TABLE permit_orders ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE permit_orders ADD COLUMN IF NOT EXISTS approved_by UUID
+    REFERENCES users(id) ON DELETE SET NULL;
+
+-- ---------------------------------------------------------------------
+-- Indexes
+-- ---------------------------------------------------------------------
+
+CREATE INDEX IF NOT EXISTS idx_clients_active           ON clients(is_active);
+CREATE INDEX IF NOT EXISTS idx_parking_lots_client_id   ON parking_lots(client_id);
+CREATE INDEX IF NOT EXISTS idx_permit_types_client_id   ON permit_types(client_id);
+CREATE INDEX IF NOT EXISTS idx_permit_orders_client_id  ON permit_orders(client_id);
+CREATE INDEX IF NOT EXISTS idx_permit_orders_lot_id     ON permit_orders(lot_id);
+CREATE INDEX IF NOT EXISTS idx_users_role_id            ON users(role_id);
+CREATE INDEX IF NOT EXISTS idx_users_active             ON users(is_active) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_vehicles_user_id         ON vehicles(user_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_license_plate   ON vehicles(upper(license_plate)) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_credit_cards_user_id     ON credit_cards(user_id);
+CREATE INDEX IF NOT EXISTS idx_credit_cards_default     ON credit_cards(user_id, is_default) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_permit_orders_user_id    ON permit_orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_permit_orders_status     ON permit_orders(status);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id    ON auth_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_user_id ON audit_logs(actor_user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity        ON audit_logs(entity_type, entity_id);
+
+-- ---------------------------------------------------------------------
+-- updated_at trigger function + per-table triggers
+-- ---------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$
@@ -176,6 +211,15 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_roles_updated_at         ON roles;
+DROP TRIGGER IF EXISTS trg_users_updated_at         ON users;
+DROP TRIGGER IF EXISTS trg_vehicles_updated_at      ON vehicles;
+DROP TRIGGER IF EXISTS trg_credit_cards_updated_at  ON credit_cards;
+DROP TRIGGER IF EXISTS trg_clients_updated_at       ON clients;
+DROP TRIGGER IF EXISTS trg_parking_lots_updated_at  ON parking_lots;
+DROP TRIGGER IF EXISTS trg_permit_types_updated_at  ON permit_types;
+DROP TRIGGER IF EXISTS trg_permit_orders_updated_at ON permit_orders;
 
 CREATE TRIGGER trg_roles_updated_at
 BEFORE UPDATE ON roles
@@ -209,6 +253,10 @@ CREATE TRIGGER trg_permit_orders_updated_at
 BEFORE UPDATE ON permit_orders
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- ---------------------------------------------------------------------
+-- Seed data
+-- ---------------------------------------------------------------------
+
 INSERT INTO roles (name, description)
 VALUES
     ('admin', 'Platform administrator with access to metrics, users, vehicles, and orders.'),
@@ -231,9 +279,58 @@ SELECT c.id, 'MAIN', c.name || ' Main Lot', NULL
  WHERE c.slug IN ('rancho-cucamonga', 'covina', 'daneville')
 ON CONFLICT (client_id, code) DO NOTHING;
 
--- Default permit catalog seeded per-client. Prices intentionally vary
--- between clients to demonstrate that each client controls their own
--- pricing.
+-- ---------------------------------------------------------------------
+-- Backfill + lock down per-client schema (legacy installs)
+--
+-- After clients are seeded we can:
+--   1. Reassign any orphan permit_types / permit_orders to a default
+--      client so the NOT NULL + UNIQUE constraints below can be added
+--      safely on top of a pre-clients schema.
+--   2. Replace the legacy global UNIQUE(code) on permit_types with a
+--      per-client UNIQUE(client_id, code).
+--   3. Promote client_id to NOT NULL on both permit_types and permit_orders.
+--
+-- All steps are idempotent: each is a no-op once already applied.
+-- ---------------------------------------------------------------------
+
+UPDATE permit_types
+   SET client_id = (SELECT id FROM clients WHERE slug = 'rancho-cucamonga' LIMIT 1)
+ WHERE client_id IS NULL;
+
+UPDATE permit_orders po
+   SET client_id = pt.client_id
+  FROM permit_types pt
+ WHERE pt.id = po.permit_type_id AND po.client_id IS NULL;
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'permit_types_code_key') THEN
+        ALTER TABLE permit_types DROP CONSTRAINT permit_types_code_key;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'permit_types_client_id_code_key') THEN
+        ALTER TABLE permit_types
+            ADD CONSTRAINT permit_types_client_id_code_key UNIQUE (client_id, code);
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'permit_types' AND column_name = 'client_id'
+           AND is_nullable = 'YES'
+    ) AND NOT EXISTS (SELECT 1 FROM permit_types WHERE client_id IS NULL) THEN
+        ALTER TABLE permit_types ALTER COLUMN client_id SET NOT NULL;
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'permit_orders' AND column_name = 'client_id'
+           AND is_nullable = 'YES'
+    ) AND NOT EXISTS (SELECT 1 FROM permit_orders WHERE client_id IS NULL) THEN
+        ALTER TABLE permit_orders ALTER COLUMN client_id SET NOT NULL;
+    END IF;
+END $$;
+
+-- Default permit catalog seeded per-client. Re-running is a no-op
+-- thanks to the UNIQUE(client_id, code) constraint above.
 INSERT INTO permit_types (client_id, code, name, description, cents_price, duration_days)
 SELECT c.id, t.code, t.name, t.description, t.cents_price, t.duration_days
   FROM clients c
