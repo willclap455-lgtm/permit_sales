@@ -58,7 +58,7 @@ final class AdminController
         );
 
         $clients = Database::all(
-            "SELECT c.id, c.slug, c.name, c.is_active,
+            "SELECT c.id, c.slug, c.name, c.phone, c.is_active,
                     (SELECT COUNT(*) FROM parking_lots pl
                        WHERE pl.client_id = c.id AND pl.is_active = TRUE) AS lot_count,
                     (SELECT COUNT(*) FROM permit_types pt
@@ -169,6 +169,67 @@ final class AdminController
         );
 
         Session::flash('success', "Cancelled permit {$order['permit_number']}.");
+        header('Location: /admin');
+    }
+
+    /**
+     * Update a client's customer-support phone number. The dashboard
+     * surfaces this number to customers as the line they can call to
+     * expedite their pending permit, so it's worth keeping current.
+     *
+     * Submits as `phone=...`; an empty value clears the saved number.
+     */
+    public function updateClient(array $params): void
+    {
+        Request::checkCsrf();
+        Auth::requireAdmin();
+
+        $clientId = $params['id'] ?? null;
+        if (!is_string($clientId) || $clientId === '') {
+            Session::flash('error', 'Missing client id.');
+            header('Location: /admin');
+            return;
+        }
+
+        $client = Database::one(
+            'SELECT id, name FROM clients WHERE id = :id',
+            ['id' => $clientId]
+        );
+        if ($client === null) {
+            Session::flash('error', 'Client not found.');
+            header('Location: /admin');
+            return;
+        }
+
+        $phoneRaw = Request::input('phone');
+        $phone = $phoneRaw !== null ? trim($phoneRaw) : '';
+        if ($phone !== '') {
+            // Light validation only — admins type these as a free-form
+            // display string ("(909) 555-0102") so we just bound the
+            // length and require *some* digits.
+            if (strlen($phone) > 32) {
+                Session::flash('error', 'Phone number must be 32 characters or fewer.');
+                header('Location: /admin');
+                return;
+            }
+            if (!preg_match('/[0-9]{3,}/', $phone)) {
+                Session::flash('error', 'Phone number must contain at least 3 digits.');
+                header('Location: /admin');
+                return;
+            }
+        }
+
+        Database::exec(
+            'UPDATE clients SET phone = :phone WHERE id = :id',
+            ['phone' => $phone !== '' ? $phone : null, 'id' => $clientId]
+        );
+
+        Session::flash(
+            'success',
+            $phone === ''
+                ? "Cleared phone number for {$client['name']}."
+                : "Updated phone number for {$client['name']}."
+        );
         header('Location: /admin');
     }
 }

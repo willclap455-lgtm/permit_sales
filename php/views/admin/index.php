@@ -79,14 +79,15 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
     <section class="card-panel card-panel--wide">
       <header class="card-panel__head">
         <h2>Clients</h2>
+        <span class="muted small">Set a phone number per client and customers will see it on their dashboard.</span>
       </header>
       <table class="data-table">
         <thead>
-          <tr><th>Client</th><th>Slug</th><th>Lots</th><th>Permit types</th><th>Total orders</th><th>Status</th></tr>
+          <tr><th>Client</th><th>Slug</th><th>Lots</th><th>Permit types</th><th>Total orders</th><th>Phone</th><th>Status</th></tr>
         </thead>
         <tbody>
           <?php if (empty($clients)): ?>
-            <tr><td colspan="6" class="entity-list__empty">No clients configured.</td></tr>
+            <tr><td colspan="7" class="entity-list__empty">No clients configured.</td></tr>
           <?php endif; ?>
           <?php foreach ($clients as $c): ?>
             <tr>
@@ -95,6 +96,20 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
               <td><?= number_format((int) $c['lot_count']) ?></td>
               <td><?= number_format((int) $c['type_count']) ?></td>
               <td><?= number_format((int) $c['order_count']) ?></td>
+              <td>
+                <form method="post" action="/admin/clients/<?= View::e($c['id']) ?>" class="client-phone-form">
+                  <input type="hidden" name="_csrf" value="<?= View::e($__csrf) ?>">
+                  <input
+                    type="tel"
+                    name="phone"
+                    value="<?= View::e($c['phone'] ?? '') ?>"
+                    placeholder="(555) 555-0100"
+                    maxlength="32"
+                    aria-label="Phone number for <?= View::e($c['name']) ?>"
+                  >
+                  <button class="btn btn--ghost btn--sm" type="submit">Save</button>
+                </form>
+              </td>
               <td>
                 <?php if ($c['is_active']): ?>
                   <span class="pill pill--mint">Active</span>

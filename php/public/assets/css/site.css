@@ -518,6 +518,19 @@ button { font: inherit; cursor: pointer; }
 .stat--accent { background: var(--ink); color: #fff; }
 .stat--accent .stat__label { color: rgba(255,255,255,0.6); }
 
+/* Inline "edit phone" form inside the admin Clients table. */
+.client-phone-form { display: inline-flex; gap: 6px; align-items: center; margin: 0; }
+.client-phone-form input[type="tel"] {
+  font: inherit; padding: 6px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+  width: 160px; max-width: 100%;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.client-phone-form input[type="tel"]:focus {
+  outline: none; border-color: var(--blueprint); background: #fff;
+  box-shadow: 0 0 0 3px var(--blueprint-soft);
+}
+
 /* ------------------------------------------------------------------
    Contact / day pass
    ------------------------------------------------------------------ */
