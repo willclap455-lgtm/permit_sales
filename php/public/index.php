@@ -52,6 +52,8 @@ $router->post('/orders', [$orders, 'create']);
 $router->get('/admin', [$admin, 'index']);
 $router->post('/admin/orders/{id}/approve', [$admin, 'approveOrder']);
 $router->post('/admin/orders/{id}/reject', [$admin, 'rejectOrder']);
+$router->post('/admin/clients', [$admin, 'createClient']);
+$router->get('/admin/clients/{id}/edit', [$admin, 'editClient']);
 $router->post('/admin/clients/{id}', [$admin, 'updateClient']);
 
 try {
