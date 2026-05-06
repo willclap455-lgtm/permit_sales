@@ -425,6 +425,28 @@ button { font: inherit; cursor: pointer; }
 }
 @media (min-width: 880px) { .dashboard__head { grid-template-columns: 1fr auto; } }
 .dashboard__quick { display: inline-flex; gap: 10px; }
+
+/* Client switcher tabs (customer dashboard "shopping with" picker). */
+.client-switcher {
+  display: grid; gap: 10px; align-items: center;
+  background: #fff; border: 1px solid var(--line); border-radius: var(--radius-lg);
+  padding: 14px 18px; box-shadow: var(--shadow-card);
+  margin-bottom: 24px;
+}
+@media (min-width: 720px) { .client-switcher { grid-template-columns: auto 1fr; gap: 18px; } }
+.client-switcher__label { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink-soft); letter-spacing: 0.06em; text-transform: uppercase; }
+.client-switcher__tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.client-tab {
+  display: inline-flex; align-items: center;
+  padding: 8px 16px; border-radius: 999px;
+  font-weight: 600; font-size: 14px; line-height: 1;
+  background: var(--paper); color: var(--ink-soft);
+  border: 1px solid var(--line);
+  text-decoration: none;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+.client-tab:hover { transform: translateY(-1px); border-color: rgba(15, 23, 42, 0.18); color: var(--ink); }
+.client-tab.is-active { background: var(--ink); color: #fff; border-color: var(--ink); }
 .dashboard__grid {
   display: grid; gap: 18px 40px;
   grid-template-columns: 1fr;

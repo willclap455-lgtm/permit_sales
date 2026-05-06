@@ -6,6 +6,7 @@ namespace PermitSales\Controllers;
 
 use PermitSales\Auth;
 use PermitSales\Database;
+use PermitSales\Request;
 use PermitSales\View;
 
 final class DashboardController
@@ -13,6 +14,26 @@ final class DashboardController
     public function index(): void
     {
         $user = Auth::requireUser();
+
+        $clients = Database::all(
+            'SELECT id, slug, name FROM clients
+              WHERE is_active = TRUE
+              ORDER BY name ASC'
+        );
+
+        $clientSlug = Request::input('client');
+        $selectedClient = null;
+        if ($clientSlug !== null && $clientSlug !== '') {
+            foreach ($clients as $c) {
+                if ($c['slug'] === $clientSlug) {
+                    $selectedClient = $c;
+                    break;
+                }
+            }
+        }
+        if ($selectedClient === null && !empty($clients)) {
+            $selectedClient = $clients[0];
+        }
 
         $vehicles = Database::all(
             'SELECT id, make, model, color, license_plate, license_plate_region, is_active
@@ -32,26 +53,48 @@ final class DashboardController
 
         $orders = Database::all(
             'SELECT po.id, po.permit_number, po.status, po.cents_total,
-                    po.starts_on, po.ends_on, pt.name AS permit_name, pt.code AS permit_code
+                    po.starts_on, po.ends_on,
+                    pt.name AS permit_name, pt.code AS permit_code,
+                    c.name AS client_name,
+                    pl.name AS lot_name
                FROM permit_orders po
                JOIN permit_types pt ON pt.id = po.permit_type_id
+               JOIN clients c ON c.id = po.client_id
+               LEFT JOIN parking_lots pl ON pl.id = po.lot_id
               WHERE po.user_id = :uid
               ORDER BY po.created_at DESC
               LIMIT 25',
             ['uid' => $user['id']]
         );
 
-        $permitTypes = Database::all(
-            'SELECT id, code, name, description, cents_price, duration_days
-               FROM permit_types WHERE is_active = TRUE ORDER BY cents_price ASC'
-        );
+        $permitTypes = [];
+        $lots = [];
+        if ($selectedClient !== null) {
+            $permitTypes = Database::all(
+                'SELECT id, code, name, description, cents_price, duration_days
+                   FROM permit_types
+                  WHERE is_active = TRUE AND client_id = :cid
+                  ORDER BY cents_price ASC',
+                ['cid' => $selectedClient['id']]
+            );
+            $lots = Database::all(
+                'SELECT id, code, name, address
+                   FROM parking_lots
+                  WHERE is_active = TRUE AND client_id = :cid
+                  ORDER BY name ASC',
+                ['cid' => $selectedClient['id']]
+            );
+        }
 
         View::render('dashboard/index', [
-            'title'       => 'Dashboard — PermitSales',
-            'vehicles'    => $vehicles,
-            'cards'       => $cards,
-            'orders'      => $orders,
-            'permitTypes' => $permitTypes,
+            'title'          => 'Dashboard — PermitSales',
+            'vehicles'       => $vehicles,
+            'cards'          => $cards,
+            'orders'         => $orders,
+            'permitTypes'    => $permitTypes,
+            'clients'        => $clients,
+            'selectedClient' => $selectedClient,
+            'lots'           => $lots,
         ]);
     }
 }

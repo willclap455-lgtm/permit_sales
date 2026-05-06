@@ -5,6 +5,9 @@ use PermitSales\View;
 /** @var array<int,array<string,mixed>> $cards */
 /** @var array<int,array<string,mixed>> $orders */
 /** @var array<int,array<string,mixed>> $permitTypes */
+/** @var array<int,array<string,mixed>> $clients */
+/** @var array<string,mixed>|null $selectedClient */
+/** @var array<int,array<string,mixed>> $lots */
 
 $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
 ?>
@@ -21,6 +24,23 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
         <a class="btn btn--outline" href="#vehicles">Add vehicle</a>
       </div>
     </header>
+
+    <?php if (!empty($clients)): ?>
+      <section class="client-switcher" aria-label="Choose a client">
+        <p class="client-switcher__label">Shopping with:</p>
+        <nav class="client-switcher__tabs" role="tablist">
+          <?php foreach ($clients as $cli): ?>
+            <?php $isActive = ($selectedClient && $cli['id'] === $selectedClient['id']); ?>
+            <a
+              class="client-tab<?= $isActive ? ' is-active' : '' ?>"
+              href="/dashboard?client=<?= View::e($cli['slug']) ?>#order"
+              role="tab"
+              aria-selected="<?= $isActive ? 'true' : 'false' ?>"
+            ><?= View::e($cli['name']) ?></a>
+          <?php endforeach; ?>
+        </nav>
+      </section>
+    <?php endif; ?>
 
     <div class="dashboard__grid">
       <section class="card-panel" id="vehicles">
@@ -110,10 +130,19 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
 
       <section class="card-panel card-panel--wide" id="order">
         <header class="card-panel__head">
-          <h2>Buy a permit</h2>
+          <h2>Buy a permit<?= $selectedClient ? ' — ' . View::e($selectedClient['name']) : '' ?></h2>
+          <?php if ($selectedClient): ?>
+            <span class="muted small">Permits below are for <?= View::e($selectedClient['name']) ?>. Switch clients above to see other catalogs.</span>
+          <?php endif; ?>
         </header>
+        <?php if (!$selectedClient): ?>
+          <p class="muted">No clients are configured yet — ask an admin to add one.</p>
+        <?php elseif (empty($permitTypes)): ?>
+          <p class="muted"><?= View::e($selectedClient['name']) ?> has no active permits yet.</p>
+        <?php else: ?>
         <form method="post" action="/orders" class="permit-order">
           <input type="hidden" name="_csrf" value="<?= View::e($__csrf) ?>">
+          <input type="hidden" name="client_id" value="<?= View::e($selectedClient['id']) ?>">
           <div class="permit-order__types">
             <?php foreach ($permitTypes as $i => $t): ?>
               <label class="permit-tier permit-tier--select">
@@ -128,6 +157,19 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
             <?php endforeach; ?>
           </div>
           <div class="field-row">
+            <div class="field">
+              <label>Parking lot</label>
+              <select name="lot_id"<?= empty($lots) ? '' : ' required' ?>>
+                <?php if (empty($lots)): ?>
+                  <option value="">— No lots configured —</option>
+                <?php else: ?>
+                  <option value="">— Pick a lot —</option>
+                <?php endif; ?>
+                <?php foreach ($lots as $lt): ?>
+                  <option value="<?= View::e($lt['id']) ?>"><?= View::e($lt['name']) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
             <div class="field">
               <label>Vehicle</label>
               <select name="vehicle_id">
@@ -178,8 +220,10 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
             </div>
             <p class="muted small">A mailing address is required to complete checkout.</p>
           </fieldset>
-          <button class="btn btn--primary btn--lg" type="submit">Checkout</button>
+          <button class="btn btn--primary btn--lg" type="submit">Submit order</button>
+          <p class="muted small">New orders enter <strong>pending</strong> status until an admin approves and processes the sale.</p>
         </form>
+        <?php endif; ?>
       </section>
 
       <section class="card-panel card-panel--wide">
@@ -188,15 +232,21 @@ $cents = static fn (int $v): string => '$' . number_format($v / 100, 2);
         </header>
         <table class="data-table">
           <thead>
-            <tr><th>Permit #</th><th>Type</th><th>Status</th><th>Total</th><th>Window</th></tr>
+            <tr><th>Permit #</th><th>Client / Lot</th><th>Type</th><th>Status</th><th>Total</th><th>Window</th></tr>
           </thead>
           <tbody>
             <?php if (empty($orders)): ?>
-              <tr><td colspan="5" class="entity-list__empty">No permit orders yet.</td></tr>
+              <tr><td colspan="6" class="entity-list__empty">No permit orders yet.</td></tr>
             <?php endif; ?>
             <?php foreach ($orders as $o): ?>
               <tr>
                 <td><strong><?= View::e($o['permit_number']) ?></strong></td>
+                <td>
+                  <?= View::e($o['client_name']) ?>
+                  <?php if (!empty($o['lot_name'])): ?>
+                    <br><span class="muted small"><?= View::e($o['lot_name']) ?></span>
+                  <?php endif; ?>
+                </td>
                 <td><?= View::e($o['permit_name']) ?></td>
                 <td><span class="pill pill--<?= View::e($o['status']) ?>"><?= View::e($o['status']) ?></span></td>
                 <td><?= $cents((int) $o['cents_total']) ?></td>
