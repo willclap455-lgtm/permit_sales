@@ -36,8 +36,25 @@ final class OrderController
             return;
         }
 
+        // If the customer already saved a mailing address and didn't
+        // re-open the form, the address_* fields will be missing —
+        // fall back to whatever we have on file.
+        $savedAddress = Database::one(
+            'SELECT mailing_first_name, mailing_last_name, mailing_line1, mailing_line2,
+                    mailing_city, mailing_state, mailing_zip
+               FROM users WHERE id = :id',
+            ['id' => $user['id']]
+        ) ?? [];
+        $firstName = self::firstNonEmpty($firstName, $savedAddress['mailing_first_name'] ?? null);
+        $lastName  = self::firstNonEmpty($lastName,  $savedAddress['mailing_last_name']  ?? null);
+        $line1     = self::firstNonEmpty($line1,     $savedAddress['mailing_line1']      ?? null);
+        $line2     = self::firstNonEmpty($line2,     $savedAddress['mailing_line2']      ?? null);
+        $city      = self::firstNonEmpty($city,      $savedAddress['mailing_city']       ?? null);
+        $state     = self::firstNonEmpty($state,     $savedAddress['mailing_state']      ?? null);
+        $zip       = self::firstNonEmpty($zip,       $savedAddress['mailing_zip']        ?? null);
+
         try {
-            $address = self::buildMailingAddress(
+            [$address, $addressFields] = self::buildMailingAddress(
                 $firstName, $lastName, $line1, $line2, $city, $state, $zip
             );
         } catch (ValidationException $e) {
@@ -45,6 +62,32 @@ final class OrderController
             header('Location: /dashboard');
             return;
         }
+
+        // Persist the mailing address on the user so it auto-fills on
+        // every subsequent checkout. Stored individually (not the
+        // multi-line `mailing_address` blob) so the dashboard can render
+        // and edit it cleanly.
+        Database::exec(
+            'UPDATE users
+                SET mailing_first_name = :first,
+                    mailing_last_name  = :last,
+                    mailing_line1      = :line1,
+                    mailing_line2      = :line2,
+                    mailing_city       = :city,
+                    mailing_state      = :state,
+                    mailing_zip        = :zip
+              WHERE id = :id',
+            [
+                'first' => $addressFields['first_name'],
+                'last'  => $addressFields['last_name'],
+                'line1' => $addressFields['line1'],
+                'line2' => $addressFields['line2'] !== '' ? $addressFields['line2'] : null,
+                'city'  => $addressFields['city'],
+                'state' => $addressFields['state'],
+                'zip'   => $addressFields['zip'],
+                'id'    => $user['id'],
+            ]
+        );
 
         $client = Database::one(
             'SELECT id, slug, name FROM clients
@@ -153,13 +196,23 @@ final class OrderController
         header('Location: /dashboard?client=' . urlencode((string) $client['slug']));
     }
 
+    private static function firstNonEmpty(?string $a, ?string $b): ?string
+    {
+        if ($a !== null && trim($a) !== '') {
+            return $a;
+        }
+        if ($b !== null && trim($b) !== '') {
+            return $b;
+        }
+        return null;
+    }
+
     /**
-     * Combine the mailing-address fields into a single newline-formatted
-     * string suitable for the permit_orders.mailing_address TEXT column.
+     * Validate + format the mailing-address fields. Returns a tuple of
+     * [multi-line text blob for permit_orders.mailing_address, normalized
+     * field map for persistence on the user record].
      *
-     * The mailing address is required for checkout. First name, last name,
-     * line 1, city, state, and ZIP must all be present and pass basic
-     * sanity checks. Line 2 is the only optional field.
+     * @return array{0:string,1:array<string,string>}
      */
     private static function buildMailingAddress(
         ?string $firstName,
@@ -169,7 +222,7 @@ final class OrderController
         ?string $city,
         ?string $state,
         ?string $zip,
-    ): string {
+    ): array {
         $firstName = $firstName !== null ? trim($firstName) : '';
         $lastName  = $lastName  !== null ? trim($lastName)  : '';
         $line1 = $line1 !== null ? trim($line1) : '';
@@ -213,6 +266,17 @@ final class OrderController
             $lines[] = $line2;
         }
         $lines[] = "{$city}, {$state} {$zip}";
-        return implode("\n", $lines);
+        return [
+            implode("\n", $lines),
+            [
+                'first_name' => $firstName,
+                'last_name'  => $lastName,
+                'line1'      => $line1,
+                'line2'      => $line2,
+                'city'       => $city,
+                'state'      => $state,
+                'zip'        => $zip,
+            ],
+        ];
     }
 }

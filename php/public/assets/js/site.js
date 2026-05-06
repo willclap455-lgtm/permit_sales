@@ -55,6 +55,16 @@
             $form[0].reset();
         });
 
+        // Mailing address: collapse the form behind a saved-address
+        // summary + Edit button so customers fill it out once and reuse
+        // it on every subsequent order.
+        $('[data-mailing-edit]').on('click', function () {
+            var $fieldset = $(this).closest('[data-mailing-address]');
+            $fieldset.find('[data-mailing-summary]').attr('hidden', true);
+            $fieldset.find('[data-mailing-fields]').removeAttr('hidden')
+                .find('input').first().trigger('focus');
+        });
+
         // Auto-dismiss flash messages after 5 seconds.
         setTimeout(function () {
             $('.flash').slideUp(300, function () { $(this).remove(); });

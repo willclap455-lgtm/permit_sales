@@ -435,18 +435,16 @@ button { font: inherit; cursor: pointer; }
 }
 @media (min-width: 720px) { .client-switcher { grid-template-columns: auto 1fr; gap: 18px; } }
 .client-switcher__label { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink-soft); letter-spacing: 0.06em; text-transform: uppercase; }
-.client-switcher__tabs { display: flex; flex-wrap: wrap; gap: 8px; }
-.client-tab {
-  display: inline-flex; align-items: center;
-  padding: 8px 16px; border-radius: 999px;
-  font-weight: 600; font-size: 14px; line-height: 1;
-  background: var(--paper); color: var(--ink-soft);
-  border: 1px solid var(--line);
-  text-decoration: none;
-  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, transform 120ms ease;
+.client-switcher__tabs { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* Selected-client banner under the "Buy a permit" header — themed
+   in the site's warm coral so it visually pops without screaming. */
+.client-context-note {
+  display: inline-block;
+  color: var(--coral);
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
-.client-tab:hover { transform: translateY(-1px); border-color: rgba(15, 23, 42, 0.18); color: var(--ink); }
-.client-tab.is-active { background: var(--ink); color: #fff; border-color: var(--ink); }
 .dashboard__grid {
   display: grid; gap: 18px 40px;
   grid-template-columns: 1fr;
@@ -479,6 +477,14 @@ button { font: inherit; cursor: pointer; }
   padding: 0 8px; font-size: 13px; font-weight: 600; color: var(--ink-soft);
 }
 .permit-order__address .field { margin-bottom: 0; }
+.permit-order__address-summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 12px 14px; border-radius: var(--radius-md);
+  background: #fff; border: 1px solid var(--line);
+}
+.permit-order__address-summary p { margin: 0; }
+.permit-order__address-fields { display: grid; gap: 12px; }
+.permit-order__address-fields[hidden] { display: none; }
 
 .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .data-table th, .data-table td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
