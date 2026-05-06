@@ -419,6 +419,7 @@ button { font: inherit; cursor: pointer; }
    Dashboard
    ------------------------------------------------------------------ */
 .dashboard { padding: 64px 0 96px; }
+.dashboard--flush { padding-top: 24px; }
 .dashboard__head {
   display: grid; gap: 18px; align-items: end; margin-bottom: 32px;
 }
@@ -460,6 +461,9 @@ button { font: inherit; cursor: pointer; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .data-table th, .data-table td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .data-table th { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.data-table__actions { white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.data-table td.data-table__actions { display: table-cell; }
+.data-table td.data-table__actions form { display: inline-block; }
 
 .pill {
   display: inline-block; padding: 4px 10px; border-radius: 999px;
