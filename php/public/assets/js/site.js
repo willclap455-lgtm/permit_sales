@@ -93,6 +93,148 @@
             }
         });
 
+        // Live customer search on the admin console.
+        //
+        // The Customers section ships with a normal GET form that
+        // works without JavaScript. With jQuery available, we hijack
+        // the search input so each keystroke fires `$.ajax()` against
+        // the JSON endpoint at /admin/customers and re-renders the
+        // results table without a full page reload.
+        var $customerSearch = $('[data-customer-search]');
+        if ($customerSearch.length) {
+            var $form    = $customerSearch.find('[data-customer-search-form]');
+            var $input   = $customerSearch.find('[data-customer-search-input]');
+            var $tbody   = $customerSearch.find('[data-customer-search-results]');
+            var $summary = $customerSearch.find('[data-customer-search-summary]');
+            var $clear   = $customerSearch.find('[data-customer-search-clear]');
+
+            // Track the in-flight request so a slow response can never
+            // overwrite a newer one.
+            var pendingXhr = null;
+            var debounceTimer = null;
+
+            function escapeHtml(value) {
+                if (value === null || typeof value === 'undefined') {
+                    return '';
+                }
+                return String(value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function renderRows(results, query) {
+                if (!results.length) {
+                    var emptyMsg = query
+                        ? 'No customers match that search.'
+                        : 'No customers yet.';
+                    $tbody.html(
+                        '<tr><td colspan="6" class="entity-list__empty">' +
+                        escapeHtml(emptyMsg) +
+                        '</td></tr>'
+                    );
+                    return;
+                }
+                var rows = results.map(function (u) {
+                    var phone = u.phone
+                        ? escapeHtml(u.phone)
+                        : '<span class="muted small">—</span>';
+                    var role = escapeHtml(u.role || '');
+                    var lastLogin = u.last_login_at
+                        ? escapeHtml(u.last_login_at)
+                        : 'never';
+                    return '' +
+                        '<tr>' +
+                            '<td><strong>' + escapeHtml(u.full_name) + '</strong></td>' +
+                            '<td>' + escapeHtml(u.email) + '</td>' +
+                            '<td>' + phone + '</td>' +
+                            '<td><span class="pill pill--' + role + '">' + role + '</span></td>' +
+                            '<td class="muted">' + lastLogin + '</td>' +
+                            '<td class="muted">' + escapeHtml(u.created_at) + '</td>' +
+                        '</tr>';
+                });
+                $tbody.html(rows.join(''));
+            }
+
+            function renderSummary(count, query) {
+                var text;
+                if (query) {
+                    text = count + ' match' + (count === 1 ? '' : 'es') +
+                           ' for \u201C' + query + '\u201D';
+                } else {
+                    text = 'Showing the most recent ' + count;
+                }
+                $summary.text(text);
+            }
+
+            function runSearch(query) {
+                if (pendingXhr && pendingXhr.readyState !== 4) {
+                    pendingXhr.abort();
+                }
+                pendingXhr = $.ajax({
+                    url: '/admin/customers',
+                    method: 'GET',
+                    dataType: 'json',
+                    cache: false,
+                    data: { customer_q: query },
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                }).done(function (payload) {
+                    if (!payload || !$.isArray(payload.results)) {
+                        return;
+                    }
+                    renderRows(payload.results, payload.query || '');
+                    renderSummary(payload.count || 0, payload.query || '');
+                    $clear.prop('hidden', !query);
+                }).fail(function (jqXhr, status) {
+                    if (status === 'abort') {
+                        return;
+                    }
+                    $summary.text('Search failed — please try again.');
+                });
+            }
+
+            // Trigger an AJAX search whenever the admin types. We
+            // listen on `keyup` (and `search`/`input` for paste +
+            // clear-button affordances) and debounce slightly so we
+            // don't fire one request per character on fast typists.
+            $input.on('keyup search input', function () {
+                var query = $(this).val();
+                if (typeof query !== 'string') {
+                    query = '';
+                }
+                query = query.replace(/^\s+|\s+$/g, '');
+
+                if (debounceTimer) {
+                    window.clearTimeout(debounceTimer);
+                }
+                debounceTimer = window.setTimeout(function () {
+                    runSearch(query);
+                }, 150);
+            });
+
+            // Submitting the form (Enter key, "Search" button) should
+            // run the AJAX search instead of doing a full page reload.
+            $form.on('submit', function (e) {
+                e.preventDefault();
+                if (debounceTimer) {
+                    window.clearTimeout(debounceTimer);
+                    debounceTimer = null;
+                }
+                var query = ($input.val() || '').replace(/^\s+|\s+$/g, '');
+                runSearch(query);
+            });
+
+            // The Clear link normally navigates to /admin#customers;
+            // intercept it so we can reset the input + table inline.
+            $clear.on('click', function (e) {
+                e.preventDefault();
+                $input.val('').trigger('focus');
+                runSearch('');
+            });
+        }
+
         // Auto-dismiss flash messages after 5 seconds.
         setTimeout(function () {
             $('.flash').slideUp(300, function () { $(this).remove(); });

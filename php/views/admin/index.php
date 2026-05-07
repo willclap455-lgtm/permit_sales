@@ -178,10 +178,10 @@ $customerQ = $customerQ ?? '';
       </table>
     </section>
 
-    <section class="card-panel card-panel--wide" id="customers">
+    <section class="card-panel card-panel--wide" id="customers" data-customer-search>
       <header class="card-panel__head">
         <h2>Customers</h2>
-        <span class="muted small">
+        <span class="muted small" data-customer-search-summary aria-live="polite">
           <?php if ($customerQ !== ''): ?>
             <?= count($users) ?> match<?= count($users) === 1 ? '' : 'es' ?> for “<?= View::e($customerQ) ?>”
           <?php else: ?>
@@ -189,7 +189,13 @@ $customerQ = $customerQ ?? '';
           <?php endif; ?>
         </span>
       </header>
-      <form method="get" action="/admin" class="customer-search" role="search">
+      <form
+        method="get"
+        action="/admin"
+        class="customer-search"
+        role="search"
+        data-customer-search-form
+      >
         <input
           type="search"
           name="customer_q"
@@ -197,17 +203,21 @@ $customerQ = $customerQ ?? '';
           placeholder="Search by name, email, or phone…"
           aria-label="Search customers"
           autocomplete="off"
+          data-customer-search-input
         >
         <button class="btn btn--primary btn--sm" type="submit">Search</button>
-        <?php if ($customerQ !== ''): ?>
-          <a class="btn btn--link btn--sm" href="/admin#customers">Clear</a>
-        <?php endif; ?>
+        <a
+          class="btn btn--link btn--sm"
+          href="/admin#customers"
+          data-customer-search-clear
+          <?= $customerQ === '' ? 'hidden' : '' ?>
+        >Clear</a>
       </form>
       <table class="data-table">
         <thead>
           <tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Last login</th><th>Joined</th></tr>
         </thead>
-        <tbody>
+        <tbody data-customer-search-results>
           <?php if (empty($users)): ?>
             <tr>
               <td colspan="6" class="entity-list__empty">

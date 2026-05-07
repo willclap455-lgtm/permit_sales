@@ -121,6 +121,56 @@ final class AdminController
     }
 
     /**
+     * JSON endpoint backing the live customer search on the admin
+     * console. The Customers table now filters as the admin types,
+     * driven by jQuery's `$.ajax()` against this endpoint, so we have
+     * to return data in a format the page can re-render row-by-row.
+     *
+     * Mirrors the same query the `index()` action uses for the
+     * Customers section so that the inline (no-JS) Search button and
+     * the live AJAX search produce identical results.
+     */
+    public function searchCustomers(): void
+    {
+        Auth::requireAdmin();
+
+        $customerQ = Request::input('customer_q');
+        $customerQ = $customerQ !== null ? trim($customerQ) : '';
+
+        if ($customerQ !== '') {
+            $users = Database::all(
+                "SELECT u.id, u.email, u.full_name, u.phone,
+                        u.created_at, u.last_login_at, r.name AS role
+                   FROM users u JOIN roles r ON r.id = u.role_id
+                  WHERE u.deleted_at IS NULL
+                    AND (u.full_name ILIKE :q
+                      OR u.email     ILIKE :q
+                      OR COALESCE(u.phone, '') ILIKE :q)
+                  ORDER BY u.created_at DESC
+                  LIMIT 100",
+                ['q' => '%' . $customerQ . '%']
+            );
+        } else {
+            $users = Database::all(
+                "SELECT u.id, u.email, u.full_name, u.phone,
+                        u.created_at, u.last_login_at, r.name AS role
+                   FROM users u JOIN roles r ON r.id = u.role_id
+                  WHERE u.deleted_at IS NULL
+                  ORDER BY u.created_at DESC
+                  LIMIT 25"
+            );
+        }
+
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo json_encode([
+            'query'   => $customerQ,
+            'count'   => count($users),
+            'results' => $users,
+        ], JSON_THROW_ON_ERROR);
+    }
+
+    /**
      * Approve a pending permit order. Marks it `paid`, records who
      * approved it (and when), and bounces back to the admin console.
      *
